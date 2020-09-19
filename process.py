@@ -201,7 +201,7 @@ def main():
         ('a b c', 'c b a'),
         ('t h e', 'e h t'),
         ('h e l l o', 'o l l e h'),
-        ('c a p i t a l', 'l a t i p a l'),
+        ('c a p i t a l', 'l a t i p a c'),
     ]
     gpt3.few_shot(examples, x='h o r s e', y='e s r o h', prefix='Reverse the input.', temperature=1, random=1)  # fail
 
