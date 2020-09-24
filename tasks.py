@@ -225,6 +225,56 @@ def test_copycat_remove(gpt3) -> Tuple[str, str]:
     #     for x, y in train_examples[num_train:num_train + 5]:
     #         gpt3.few_shot(train_examples[:num_train], x=x, y=y, temperature=0, prefix=prefix, x_label='Original', y_label='')
 
+# Model-in-the-loop Interactions 
+# Can we boost success on a task or even teach one from scratch via interaction with a few-shot learning/interactive LM?
+
+class Result(IntEnum):
+    INVALID = 0
+    FAILURE = 1 # NOT_EQUALS
+    ALMOST = 2
+    # CONTAINS = 2
+    # CLOSE = 3
+    SUCCESS = 3 # EQUALS
+
+class Hook:
+    def __init__(self, condition: Callable[['Interaction'], bool], apply_func: Callable):
+        self.condition = condition
+        self.apply_func = apply_func
+
+    def triggered(self, interaction: 'Interaction') -> bool:
+        return self.condition(interaction)
+
+    def __call__(self, interaction: 'Interaction'):
+        self.apply_func(interaction)
+
+class Task:
+    pass 
+
+class Interaction:
+    def __init__(self, tasks: Dict[str, Callable], task_flow: Dict[str, Dict], hooks: List[Hook], model):
+        self.tasks = tasks
+        self.task_flow = task_flow
+        self.hooks = hooks
+        self.model = model
+
+        self.interaction_sequence = []
+        self.task = task_flow['root']  # type: str
+
+    def trigger_possible_hooks(self):
+        for hook in self.hooks:
+            if hook.triggered(self):
+                hook(self)
+
+    def step(self):
+        self.tasks[self.task](self.model, self)
+
+def interact(self, tasks: Dict[str, Callable], task_flow: Dict[str, Dict], hooks: List[Hook]) -> List[Dict]:
+    interaction = Interaction(tasks, task_flow, hooks, self)
+    interaction.trigger_possible_hooks()
+    while interaction.task:
+        interaction.step()
+        interaction.trigger_possible_hooks()
+    return interaction.interaction_sequence
 
 # Natural language program synthesis 
 # gpt3.interaction(, )
