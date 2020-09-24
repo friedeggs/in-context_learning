@@ -59,7 +59,7 @@ def sample_from_multilevel_markov_chain(mc, prefix: str = '', MAX_LENGTH: int = 
 	n_symbols = mc['n_symbols']
 	n_levels = mc['n_levels']
 	sequence = []
-	symbol = np.random.choice(range(1, n_symbols), p=mc['probs'][0][1:])  # take one step from STOP state 
+	symbol = np.random.choice(range(1, n_symbols), p=mc['probs'][0][1:]/mc['probs'][0][1:].sum())  # take one step from STOP state 
 	while symbol != 0 and len(sequence) < MAX_LENGTH:  # STOP state
 		if n_levels == 1:
 			sequence.append(f'{prefix}{symbol}')
