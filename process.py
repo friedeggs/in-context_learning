@@ -9,7 +9,7 @@ import openai  # type: ignore
 # https://beta.openai.com/api-ref
 openai.api_key = open('api-key').read().strip()
 
-CACHE_PATH = 'cache.jsonl'
+DEFAULT_CACHE_PATH = 'cache.jsonl'
 
 HEADER_COLOR = 'green'
 RESPONSE_COLOR = 'red'
@@ -20,17 +20,17 @@ def make_header(s: Any):
 def get_key(request):
     return tuple(sorted(request.items()))
 
-def read_cache():
+def read_cache(filename: str = DEFAULT_CACHE_PATH):
     cache = OrderedDict()
-    if os.path.exists(CACHE_PATH):
-        for line in open(CACHE_PATH):
+    if os.path.exists(filename):
+        for line in open(filename):
              item = json.loads(line)
              cache[get_key(item['request'])] = item['response']
     #print(f"Read {len(cache)} cache entries")
     return cache
 
-def write_cache(cache: Dict):
-    with open(CACHE_PATH, 'w') as f:
+def write_cache(cache: Dict, filename: str = DEFAULT_CACHE_PATH):
+    with open(filename, 'w') as f:
         for key, value in cache.items():
             item = {
                 'request': dict(key),
@@ -40,8 +40,9 @@ def write_cache(cache: Dict):
     #print(f"Wrote {len(cache)} cache entries")
 
 class GPT3:
-    def __init__(self, cache: Dict):
+    def __init__(self, cache: Dict, engine: str = "davinci"):
         self.cache = cache
+        self.engine = engine
 
     def make_query(self, **kwargs) -> Dict:
         key = get_key(kwargs)
@@ -51,7 +52,7 @@ class GPT3:
             kwargs = dict(kwargs)
             if 'random' in kwargs:
                 del kwargs['random']
-            response = openai.Completion.create(engine="davinci", **kwargs)
+            response = openai.Completion.create(engine=self.engine, **kwargs)
             self.cache[key] = response
         return response
 
