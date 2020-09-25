@@ -317,8 +317,8 @@ Being a good spy and/or high school student, though, you can figure out how it w
 	mapping = {x: y for x, y in test_examples}
 	mapping[' '] = ''
 	for i, (x, y) in enumerate(test_examples):
-		gpt3.few_shot(train_examples + test_examples[:i], prefix=prefix, x=x, temperature=0, x_label='Q', y_label='A')
-		gpt3.few_shot(train_examples + test_examples[:i], prefix=prefix, x=Q1 + '\nQ: ' + x, temperature=0, x_label='Q', y_label='A')
+		gpt3.few_shot(train_examples + test_examples[:i], prefix=prefix, x=x, y=y, temperature=0, x_label='Q', y_label='A')
+		gpt3.few_shot(train_examples + test_examples[:i], prefix=prefix, x=Q1 + '\nQ: ' + x, y=y, temperature=0, x_label='Q', y_label='A')
 	Q2 = "What message does the following sequence of button presses encode? " + ' '.join(list('23121232232321414313142343234132233343123241432221424142341331'))
 	A2 = None
 	xs = ['help', 'xray', 'affirmative', 'Mayday mayday SOS']
@@ -381,7 +381,7 @@ Being a good spy and/or high school student, though, you can figure out how it w
 # H4 (2 points). In writing Minangkabau does the sequence 'ng' represent one sound or two sounds? Provide evidence that supports your answer.
 # """
 
-def run_naclo_2010_round_2_M(gpt): 
+def run_naclo_2010_round_2_M(gpt3): 
 	prompt = """Think about the meaning of the following sentence:
 (1) The 2010 Winter Olympics were in Canada.
 Assuming that we only know sentence 1 to be true, is sentence 2 necessarily true?
@@ -593,7 +593,7 @@ def run_naclo_test_suite(gpt3):
 		# naclo_2008_round_2_J,  # TODO
 		# naclo_2009_round_1_B,  # TODO
 		run_naclo_2009_round_1_F, 
-		run_naclo_2010_round_1_E, 
+		# run_naclo_2010_round_1_E, 
 		run_naclo_2010_round_2_M, 
 		run_naclo_2011_round_1_A, 
 		run_naclo_2012_round_2_R, 

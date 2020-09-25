@@ -3,9 +3,21 @@ from enum import Enum, IntEnum
 import json
 import numpy as np
 import os
+import pdb
 import random
 from typing import Any, Callable, Dict, List, Tuple, Optional
 from termcolor import colored
+
+from naclo_problems import run_naclo_test_suite
+from synthetic_data import (
+    get_vocab, 
+    sample_multilevel_markov_chain, 
+    sample_from_multilevel_markov_chain, 
+    multilevel_markov_chain_sequence_to_str, 
+    sample_hmm, 
+    sample_from_hmm, 
+    hmm_sequence_to_str, 
+)
 
 ALPHABET = list('abcdefghijklmnopqrstuvwxyz')
 
@@ -284,6 +296,159 @@ def interact(self, tasks: Dict[str, Callable], task_flow: Dict[str, Dict], hooks
 ## Parsing context 
 
 # Novel classification: Mapping to interfaces
+
+# Task suite
+def run_task_suite(gpt3, cache, cache_fname):
+    tasks = [
+        run_data_cleaning, 
+        run_sequence_prediction, 
+        run_naclo_problems, 
+        run_novel_instructions, 
+    ]
+    for task in tasks:
+        set_seed()
+        task(gpt3, cache, cache_fname)
+        # pdb.set_trace()
+
+def run_data_cleaning(gpt3, cache, cache_fname):
+    # Data cleaning 
+    prefix = 'Reformat each phone number:'
+    train_examples = [
+        ('4164904115', '[416] 490-4115'),
+        ('528 333 2103', '[528] 333-2103'),
+        ('202-318-9100', '[202] 318-9100'),
+        ('(763)-200-3835', '[763] 200-3835'),
+    ]
+    test_examples = [
+        ('3024105332', '[302] 410-5332'),
+        ('610-105-3145', '[610] 105-3145'),
+        ('(191)-423-9875', '[191] 423-9875'),
+    ]
+    for x, y in train_examples + test_examples:
+        gpt3.few_shot(train_examples, x=x, y=y, temperature=0, prefix=prefix, x_label='Original', y_label='Formatted')
+
+def run_sequence_prediction(gpt3, cache, cache_fname):
+    # What does GPT-3 infer? 
+    prompts = [
+        ', '.join(list('aaa')), 
+        ', '.join(list('abab')), 
+        ', '.join(list('aabb')), 
+        ', '.join(list('aabbcc')), 
+        ', '.join(list('aabbaa')), 
+        ', '.join(list('a1b2c3')), 
+        ', '.join(list('a1b2c3d4e5')), 
+        ', '.join(list('z1y2x3')), 
+        ', '.join(list('z1y2x3w4v5')), 
+        ', '.join(list('z1y2x3')), 
+        ', '.join(list('j1k2l3')), 
+        ', '.join(list('j1k2l3m4n5')), 
+        # Do inferred interleaved patterns match interleaved inferred patterns?
+        ', '.join(list('258')), 
+        ## Does GPT-3 model multiple possible completions 1 2 4 7 11 ... [(n)(n+1)/2+1] and 1 2 4 8 ... [2^n]?
+        ', '.join(list('124')), 
+        ', '.join(list('1247')), 
+        ', '.join(list('1248')), 
+        ', '.join(list('a2b5c8')), 
+        ', '.join(list('a1b2c4')), 
+        ', '.join(list('a1b2c4d7')), 
+        ', '.join(list('a1b2c4d8')), 
+        ', '.join(list('que')), 
+        ', '.join(list('ques')), 
+        ', '.join(list('q2u5e8')), 
+        ', '.join(list('q1u2e4')), 
+        ', '.join(list('q1u2e4s7')), 
+        ', '.join(list('q1u2e4s8')), 
+    ]
+    for prompt in prompts:
+        for i in range(5):
+            gpt3.complete(prompt=prompt, temperature=0, random=i, max_tokens=50)
+            gpt3.complete(prompt='Exercise 1. Continue the pattern:\n' + prompt, temperature=0, random=i, max_tokens=50)
+            # gpt3.complete(prompt=prompt.replace(',',''), temperature=0, random=i, max_tokens=50)
+            # gpt3.complete(prompt='Exercise 1. Continue the pattern:\n' + prompt.replace(',',''), temperature=0, random=i, max_tokens=50)
+
+
+def run_naclo_problems(gpt3, cache, cache_fname):
+    # NACLO problems
+    run_naclo_test_suite(gpt3)
+
+def run_synthetic_data(gpt3, cache, cache_fname):
+    # Synthetic Markov Chains and HMMs
+    for j in range(5):
+        set_seed(j)
+        mc = sample_multilevel_markov_chain(lam=2., alpha=.1)
+        # print(mc)
+        vocab = get_vocab(mc['start_idxs'][-1])
+        # print(len(vocab))
+        # print(vocab)
+        seq_full = []
+        while sum(len(seq) for seq in seq_full) < 512: 
+            seq = sample_from_multilevel_markov_chain(mc)
+            seq_full.append(seq)
+        prompt_full = ' '.join([multilevel_markov_chain_sequence_to_str(mc, seq, vocab, delimiter='') for seq in seq_full])
+        # entropy = compute_entropy_of_markov_chain(mc).  # TODO relate temperature and entropy
+        for n_tokens in [32, 64, 128, 512]:
+            for i in range(5):
+                gpt3.complete(prompt=prompt_full[:n_tokens], temperature=0.7, random=i, max_tokens=1024)
+
+    for j in range(3):
+        set_seed(j)
+        hmm = sample_hmm(alpha_hidden=.1, alpha_visible=.2)
+        # print(hmm)
+        vocab = get_vocab(hmm['start_idxs'][-1])
+        seq = sample_from_hmm(hmm, 512)
+        prompt_full = hmm_sequence_to_str(hmm, seq, vocab, delimiter=' ')
+        for n_tokens in [32, 64, 128, 512]:
+            for i in range(5):
+                gpt3.complete(prompt=prompt_full[:n_tokens], temperature=0.7, random=i, max_tokens=1024)
+
+
+def run_novel_instructions(gpt3, cache, cache_fname):
+    # Novel instructions 1: to borple a sequence of letters
+    # Examples:
+    # [
+    #     ('Borple the sequence of letters a b c', 'a b c d')
+    #     ('Borple the sequence of letters a b c thrice', 'a b c d e f')
+    #     ('How many borples are needed to transform a b c into a b c d e f?', '3')
+    # ]
+    set_seed()
+    n_train = 3
+    n_test = 3
+    train_examples = [gen_borple_1() for i in range(n_train)]           \
+                + [gen_borple_2() for i in range(n_train)]              \
+                + [gen_borple_3(possible=True) for i in range(n_train)] \
+                + [gen_borple_3(possible=False) for i in range(n_train)]
+    test_examples = [gen_borple_1() for i in range(n_test)]           \
+                + [gen_borple_2() for i in range(n_test)]              \
+                + [gen_borple_3(possible=True) for i in range(n_test)] \
+                + [gen_borple_3(possible=False) for i in range(n_test)]
+    prefix = 'The following exercises demonstrate what it means to borple a sequence of letters. In words, borpling a sequence of letters modifies the sequence by adding the letter that comes after the last letter of the sequence in the alphabet to the end of the sequence.'
+    for x, y in test_examples:
+        # np.random.permutation(train_examples)
+        gpt3.few_shot(train_examples, x=x, y=y, temperature=0, prefix=prefix, x_label='Exercise', y_label='Answer')
+
+    # Novel instructions 2: letter substitution 
+    ## part i
+    # pdb.set_trace()
+    set_seed()
+    prefix = 'The substitute command replaces all occurrences of a given letter with the specified letter. Complete the following exercises by applying the described substitutions.'
+    train_examples = [gen_substitute_1() for i in range(n_train)]
+    test_examples = [gen_substitute_1() for i in range(n_test)]
+    for x, y in test_examples:
+        gpt3.few_shot(train_examples, x=x, y=y, temperature=0, prefix=prefix, x_label='Exercise', y_label='Answer')
+    
+    ## part ii
+    # pdb.set_trace()
+    set_seed()
+    prefix = 'The substitute command replaces all occurrences of a given letter with the specified letter. Complete the following exercises by applying the described substitutions.'
+    train_examples = [gen_substitute_2() for i in range(n_train)]
+    test_examples = [gen_substitute_2() for i in range(n_test)]
+    for x, y in test_examples:
+        gpt3.few_shot(train_examples, x=x, y=y, temperature=0, prefix=prefix, x_label='Exercise', y_label='Answer')
+
+    # Novel instructions 3: return of the copycat removal task - TODO make into interaction 
+    # pdb.set_trace()
+    set_seed()
+    test_copycat_remove(gpt3)
 
 if __name__ == '__main__':
     set_seed()

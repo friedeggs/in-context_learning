@@ -13,6 +13,11 @@ import traceback
 from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer, GPT2Tokenizer, PretrainedConfig # TFGPT2LMHeadModel, 
 from typing import Any, Callable, Dict, List, Tuple, Optional, Iterable, Union
 
+from tasks import (
+    run_task_suite, test_copycat_remove,
+)
+
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 DEFAULT_CACHE_PATH = 'cache.jsonl'
 
@@ -58,7 +63,8 @@ default_generation_kwargs = {
     'top_k': 0, 
     'top_p': 0.95, 
     'temperature': 0.2, 
-    'num_return_sequences': 5, 
+    # 'num_return_sequences': 5, 
+    'num_return_sequences': 1, 
 }
 
 def set_seed(seed: int = 0):
@@ -66,6 +72,9 @@ def set_seed(seed: int = 0):
     np.random.seed(seed)
     # tf.random.set_seed(seed)
     torch.manual_seed(seed)
+
+def make_header(s: Any):
+    return colored(f'===== {s}', 'green')
 
 def get_key(request):
     return tuple(sorted(request.items()))
@@ -109,18 +118,76 @@ class Runner():
         except KeyError:
             self.max_length = 9999
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, max_length=self.max_length)
-        self.model = AutoModelForCausalLM.from_pretrained(model_name, pad_token_id=self.tokenizer.eos_token_id).to('cuda')  # add the EOS token as PAD token to avoid warnings
+        self.model = AutoModelForCausalLM.from_pretrained(model_name, pad_token_id=self.tokenizer.eos_token_id).to(device)  # add the EOS token as PAD token to avoid warnings
+
+    def complete(self, prompt: str, temperature: float = 0., random: int = 0, max_tokens: int = 50, generation_kwargs: Optional[Dict] = None, **kwargs):
+        set_seed(random)
+        args = {
+            'prompt': prompt,
+            'temperature': temperature, 
+            'random': random, 
+            'max_tokens': max_tokens, 
+        }
+        all_kwargs = {**kwargs, **args}
+        if temperature < 0.01:
+            temperature = 0.01
+
+        if self.cache is not None and prompt in self.cache:
+            predicted_ys = self.cache[prompt]
+        else:
+            input_ids = self.tokenizer.encode(prompt, return_tensors='pt').to(device)  # TODO pt or tf
+            if input_ids.numel() > self.max_length:
+                print(f'Warning: input_ids has length %d; Using last {self.max_length} tokens' % input_ids.numel())
+                input_ids = input_ids[:,-self.max_length:]
+
+            _generation_kwargs = generation_kwargs or self.settings['generation_kwargs']
+            if 'max_length' in _generation_kwargs and _generation_kwargs['max_length'] <= input_ids.numel() * 1.1:
+                _generation_kwargs = {**_generation_kwargs, **{'max_length': min(self.max_length+1, int(input_ids.numel() * 1.1))}}
+            else:
+                _generation_kwargs = _generation_kwargs
+
+            try:
+                output_ids = self.model.generate(input_ids, **_generation_kwargs).to('cpu')
+                input_ids.to('cpu')
+            except Exception as e:
+                print('Input:\n' + 100 * '-')
+                print(prompt[-1000:])
+                traceback.print_exc()
+                import pdb; pdb.set_trace()
+                input_ids.to('cpu')
+                return []
+            if output_ids.dim() > 1:  
+                sample_outputs = [self.tokenizer.decode(_, skip_special_tokens=True) for _ in output_ids]
+            else:
+                sample_outputs = self.tokenizer.decode(output_ids, skip_special_tokens=True)
+
+            predicted_ys = [sample_output[len(prompt):] for sample_output in sample_outputs]
+
+            if self.cache is not None:  # update cache
+                self.cache[prompt] = predicted_ys
+
+        del all_kwargs['prompt']
+        print(make_header(all_kwargs))
+        print(prompt, end='')
+        for predicted_y in predicted_ys:
+            print(colored(predicted_y, RESPONSE_COLOR))
+        print('')
 
     def few_shot(self, 
             examples: List[Tuple[str, str]], 
-            formatter: Optional[Callable[[Tuple], Tuple]] = None, 
+            x: Optional[str] = None, 
+            y: Optional[str] = None, 
             prefix: Optional[str] = None, 
-            x_label: str = 'Q: ', 
-            y_label: str = 'A: ', 
+            formatter: Optional[Callable[[Tuple], Tuple]] = None, 
+            x_label: str = 'Input', # : ', 
+            y_label: str = 'Output', # : ', 
             generation_kwargs: Optional[Dict] = None, 
             seed: int = 0, 
+            **kwargs
         ) -> Union[str, List[str]]:
-
+        if x is not None:
+            examples.append((x, y))
+        
         set_seed(seed)
 
         formatter = formatter or self.formatter
@@ -129,15 +196,15 @@ class Runner():
         else:
             examples_fmt = examples
 
-        examples_strs = [el for x, y in examples_fmt for el in [f'{x_label}{x}', f'{y_label}{y}']]
-        sample_input = '\n'.join(examples_strs[:-1]) + f'\n{y_label}'  # TODO remove trailing space with .rstrip()?
+        examples_strs = [el for x, y in examples_fmt for el in [f'{x_label}: {x}', f'{y_label}: {y}']]
+        sample_input = '\n'.join(examples_strs[:-1]) + f'\n{y_label}: '  # TODO remove trailing space with .rstrip()?
         if prefix is not None:
             sample_input = prefix + '\n' + sample_input 
 
         if self.cache is not None and sample_input in self.cache:
             predicted_ys = self.cache[sample_input]
         else:
-            input_ids = self.tokenizer.encode(sample_input, return_tensors='pt').to('cuda')  # TODO pt or tf
+            input_ids = self.tokenizer.encode(sample_input, return_tensors='pt').to(device)  # TODO pt or tf
             if input_ids.numel() > self.max_length:
                 print(f'Warning: input_ids has length %d; Using last {self.max_length} tokens' % input_ids.numel())
                 input_ids = input_ids[:,-self.max_length:]
@@ -186,7 +253,7 @@ class Runner():
                 extra = f' {rel} {y}'
             else:
                 extra = ''
-            print(f'[{len(examples)} examples] {x} -> {colored(predicted_y, RESPONSE_COLOR)}{extra}')
+            print(f'[{len(examples)-1} examples] {x} -> {colored(predicted_y, RESPONSE_COLOR)}{extra}')
 
         return predicted_ys
 
@@ -451,13 +518,24 @@ def main():
     #     'gpt2-xl',
     #     'gpt2-large', 
     #     'gpt2-medium', 
+    #     'gpt2', 
     # ]:
     for model_name in model_names:
         # if 'gpt2' in model_name:
         #     continue
         print('Evaluating model %s' % model_name)
-        eval_copycat(model_name)
-        # eval_arithmetic(model_name)
+        # set_seed()
+        # cache_fname = f'cache_{model_name}.jsonl'
+        # cache = read_cache(cache_fname)
+        # settings = {'generation_kwargs': default_generation_kwargs}
+        # cache['generation_kwargs'] = settings['generation_kwargs']
+        # runner = Runner(model_name=model_name, settings=settings, cache=cache)
+        # # test_copycat_remove(runner)
+        # run_task_suite(runner, cache, cache_fname)
+        # import pdb; pdb.set_trace()
+        # write_cache(cache, cache_fname)
+        # eval_copycat(model_name)
+        eval_arithmetic(model_name)
 
 if __name__ == '__main__':
     main()
