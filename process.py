@@ -51,9 +51,11 @@ def read_cache(filename: str = DEFAULT_CACHE_PATH):
              item = json.loads(line)
              cache[get_key(item['request'])] = item['response']
     #print(f"Read {len(cache)} cache entries")
+    cache['__filename__'] = filename
     return cache
 
-def write_cache(cache: Dict, filename: str = DEFAULT_CACHE_PATH):
+def write_cache(cache: Dict, filename: Optional[str] = None):
+    filename = cache.get(filename) or filename or DEFAULT_CACHE_PATH
     with open(filename, 'w') as f:
         for key, value in cache.items():
             item = {
@@ -83,6 +85,7 @@ class GPT3:
                 del kwargs['random']
             response = openai.Completion.create(engine="davinci", **kwargs)
             self.cache[key] = response
+            write_cache(self.cache)
         return response
 
     def complete(self, **kwargs):
@@ -336,7 +339,5 @@ def main():
     # Begin section (frieda) =============================================================================
 
     run_task_suite(gpt3, cache, cache_fname)
-
-    write_cache(cache, cache_fname)
 
 main()

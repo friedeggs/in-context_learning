@@ -87,9 +87,11 @@ def read_cache(filename: str = DEFAULT_CACHE_PATH):
              # cache[get_key(item['request'])] = item['response']
              cache[item['request']] = item['response']
     #print(f"Read {len(cache)} cache entries")
+    cache['__filename__'] = filename
     return cache
 
-def write_cache(cache: Dict, filename: str = DEFAULT_CACHE_PATH):
+def write_cache(cache: Dict, filename: Optional[str] = None):
+    filename = cache.get(filename) or filename or DEFAULT_CACHE_PATH
     with open(filename, 'w') as f:
         for key, value in cache.items():
             item = {
@@ -98,7 +100,6 @@ def write_cache(cache: Dict, filename: str = DEFAULT_CACHE_PATH):
             }
             print(json.dumps(item), file=f)
     #print(f"Wrote {len(cache)} cache entries")
-
 
 def print_outputs(sample_outputs):
     print('Output:\n' + 100 * '-')
@@ -165,6 +166,7 @@ class Runner():
 
             if self.cache is not None:  # update cache
                 self.cache[prompt] = predicted_ys
+                write_cache(self.cache)
 
         del all_kwargs['prompt']
         print(make_header(all_kwargs))
@@ -234,6 +236,7 @@ class Runner():
 
             if self.cache is not None:  # update cache
                 self.cache[sample_input] = predicted_ys
+                write_cache(self.cache)
 
         x = examples_fmt[-1][0]
         y = examples_fmt[-1][-1]
