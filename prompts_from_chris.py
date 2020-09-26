@@ -86,14 +86,10 @@ Examples:
     # Ruzzurtle: turtle, fertile, hurtle, kirtle, myrtle, infertile
 
 def main():
-    if 'openai' in sys.modules:
-        cache = read_cache()
-        gpt3 = GPT3(cache)
-    else:
-        cache_fname = 'cache_mockgpt3.jsonl'
-        cache = read_cache(cache_fname)
-        gpt3 = MockGPT3(cache)
-
+    GPT = GPT3 if 'openai' in sys.modules else MockGPT3
+    cache_fname = f'cache_chris_{GPT.__name__}.jsonl'
+    cache = read_cache(cache_fname)
+    gpt3 = GPT(cache)
     run_chris_tasks(gpt3)
 
 if __name__ == '__main__':
