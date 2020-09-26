@@ -42,6 +42,8 @@ def make_header(s: Any):
     return colored(f'===== {s}', 'green')
 
 def get_key(request):
+    if isinstance(request, str):
+        return request
     return tuple(sorted(request.items()))
 
 def read_cache(filename: str = DEFAULT_CACHE_PATH):
@@ -55,11 +57,12 @@ def read_cache(filename: str = DEFAULT_CACHE_PATH):
     return cache
 
 def write_cache(cache: Dict, filename: Optional[str] = None):
-    filename = cache.get(filename) or filename or DEFAULT_CACHE_PATH
+    filename = cache.get('__filename__') or filename or DEFAULT_CACHE_PATH
     with open(filename, 'w') as f:
         for key, value in cache.items():
+            _key = key if isinstance(key, str) else dict(key)
             item = {
-                'request': dict(key),
+                'request': _key,
                 'response': value,
             }
             print(json.dumps(item), file=f)
@@ -140,6 +143,7 @@ class MockGPT3:
                 'choices': []  #
             }
             self.cache[key] = response
+            write_cache(self.cache)
         return response
 
     def complete(self, **kwargs):
