@@ -7,22 +7,22 @@ import sys
 from typing import Any, Callable, Dict, List, Tuple, Optional
 from termcolor import colored
 
-from naclo_problems import run_naclo_test_suite
-from tasks import (
-    gen_borple_1, gen_borple_2, gen_borple_3, 
-    test_copycat_remove, 
-    gen_substitute_1, gen_substitute_2, 
-    run_task_suite, 
-)
-from synthetic_data import (
-    get_vocab, 
-    sample_multilevel_markov_chain, 
-    sample_from_multilevel_markov_chain, 
-    multilevel_markov_chain_sequence_to_str, 
-    sample_hmm, 
-    sample_from_hmm, 
-    hmm_sequence_to_str, 
-)
+# from naclo_problems import run_naclo_test_suite
+# from tasks import (
+#     gen_borple_1, gen_borple_2, gen_borple_3, 
+#     test_copycat_remove, 
+#     gen_substitute_1, gen_substitute_2, 
+#     run_task_suite, 
+# )
+# from synthetic_data import (
+#     get_vocab, 
+#     sample_multilevel_markov_chain, 
+#     sample_from_multilevel_markov_chain, 
+#     multilevel_markov_chain_sequence_to_str, 
+#     sample_hmm, 
+#     sample_from_hmm, 
+#     hmm_sequence_to_str, 
+# )
 
 try:
     import openai  # type: ignore
@@ -338,6 +338,7 @@ def main():
 
     # Begin section (frieda) =============================================================================
 
-    run_task_suite(gpt3, cache, cache_fname)
+    # run_task_suite(gpt3, cache, cache_fname)
 
-main()
+if __name__ == '__main__':
+    main()
