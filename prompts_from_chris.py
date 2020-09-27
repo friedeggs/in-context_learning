@@ -36,7 +36,7 @@ Examples:
     ys = list(map(ans, xs))
     test_examples = list(zip(xs, ys))
     for x, y in test_examples:
-        gpt3.few_shot(train_examples, x=x, y=y, temperature=0, prefix=prefix, x_label='Word', y_label='Spelling')
+        gpt3.few_shot(train_examples, x=x, y=y, temperature=0, prefix=prefix, x_label='Word', y_label='Spelling', max_tokens=100)
 
 def task_pronunciation(gpt3):
     prefix = """Take a word and produce its pronunciation in the International Phonetic Alphabet.
@@ -56,7 +56,7 @@ Examples:
         ('ruzzurtle', 'ɹˈʌ-zˈɜː-təl'),  
     ]
     for x, y in test_examples:
-        gpt3.few_shot(train_examples, x=x, y=y, temperature=0, prefix=prefix, x_label='Word', y_label='Pronunciation')
+        gpt3.few_shot(train_examples, x=x, y=y, temperature=0, prefix=prefix, x_label='Word', y_label='Pronunciation', max_tokens=100)
 
 def task_rhyming(gpt3): 
     prefix = """Given a word, produce a list of words that rhyme with it.
@@ -76,7 +76,7 @@ Examples:
         ('ruzzurtle', None), 
     ]
     for x, y in test_examples:
-        gpt3.few_shot(train_examples, x=x, y=y, temperature=0, prefix=prefix, x_label='Word', y_label='Pronunciation')
+        gpt3.few_shot(train_examples, x=x, y=y, temperature=0, prefix=prefix, x_label='Word', y_label='Pronunciation', max_tokens=100)
 
     # Answers
 
