@@ -38,6 +38,10 @@ DEFAULT_CACHE_PATH = 'cache.jsonl'
 HEADER_COLOR = 'green'
 RESPONSE_COLOR = 'red'
 
+DEFAULT_GENERATION_KWARGS = {
+    'engine': 'davinci'
+}
+
 def make_header(s: Any):
     return colored(f'===== {s}', 'green')
 
@@ -75,8 +79,9 @@ def set_seed(seed: int = 0):
     # torch.manual_seed(seed)
 
 class GPT3:
-    def __init__(self, cache: Dict):
+    def __init__(self, cache: Dict, default_generation_kwargs: Dict = DEFAULT_GENERATION_KWARGS):
         self.cache = cache
+        self.default_generation_kwargs = default_generation_kwargs
 
     def make_query(self, **kwargs) -> Dict:
         key = get_key(kwargs)
@@ -86,12 +91,13 @@ class GPT3:
             kwargs = dict(kwargs)
             if 'random' in kwargs:
                 del kwargs['random']
-            response = openai.Completion.create(engine="davinci", **kwargs)
+            response = openai.Completion.create(**kwargs)
             self.cache[key] = response
             write_cache(self.cache)
         return response
 
     def complete(self, **kwargs):
+        kwargs = {**self.default_generation_kwargs, **kwargs}
         response = self.make_query(**kwargs) 
         prompt = kwargs['prompt']
         del kwargs['prompt']
@@ -102,6 +108,7 @@ class GPT3:
         print('')
 
     def few_shot(self, examples: List[Tuple[str, str]], x: str, y: Optional[str] = None, prefix: Optional[str] = None, x_label: str = 'Input', y_label: str = 'Output', **kwargs):
+        kwargs = {**self.default_generation_kwargs, **kwargs}
         prompt = f'{x_label}: {x}\n{y_label}:'
         if len(examples) > 0:
             prompt = '\n'.join([f'{x_label}: {x}\n{y_label}: {y}\n' for x, y in examples]) + '\n' + prompt
@@ -112,7 +119,8 @@ class GPT3:
         response = self.make_query(**kwargs)
         #prompt = kwargs['prompt']
         #del kwargs['prompt']
-        #print(make_header(kwargs))
+        print(make_header(kwargs))
+        # print(prompt, end='')
         for choice in response['choices']:
             predicted_y = choice['text'].lstrip().rstrip()
             if y is not None:  # Correct answer given
@@ -128,8 +136,9 @@ class GPT3:
             print(f'[{len(examples)} examples] {x} -> {colored(predicted_y, RESPONSE_COLOR)}{extra}')
 
 class MockGPT3:
-    def __init__(self, cache: Dict):
+    def __init__(self, cache: Dict, default_generation_kwargs: Dict = DEFAULT_GENERATION_KWARGS):
         self.cache = cache
+        self.default_generation_kwargs = default_generation_kwargs
 
     def make_query(self, **kwargs) -> Dict:
         key = get_key(kwargs)
@@ -147,6 +156,7 @@ class MockGPT3:
         return response
 
     def complete(self, **kwargs):
+        kwargs = {**self.default_generation_kwargs, **kwargs}
         response = self.make_query(**kwargs) 
         prompt = kwargs['prompt']
         del kwargs['prompt']
@@ -157,6 +167,7 @@ class MockGPT3:
         print('')
 
     def few_shot(self, examples: List[Tuple[str, str]], x: str, y: Optional[str] = None, prefix: Optional[str] = None, x_label: str = 'Input', y_label: str = 'Output', **kwargs):
+        kwargs = {**self.default_generation_kwargs, **kwargs}
         prompt = f'{x_label}: {x}\n{y_label}:'
         if len(examples) > 0:
             prompt = '\n'.join([f'{x_label}: {x}\n{y_label}: {y}\n' for x, y in examples]) + '\n' + prompt
