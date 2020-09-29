@@ -8,12 +8,15 @@ from typing import Any, Callable, Dict, List, Tuple, Optional
 from termcolor import colored
 
 # from naclo_problems import run_naclo_test_suite
-# from tasks import (
-#     gen_borple_1, gen_borple_2, gen_borple_3, 
-#     test_copycat_remove, 
-#     gen_substitute_1, gen_substitute_2, 
-#     run_task_suite, 
-# )
+from tasks import (
+    # gen_borple_1, gen_borple_2, gen_borple_3, 
+    # test_copycat_remove, 
+    # gen_substitute_1, gen_substitute_2, 
+    run_task_suite, 
+    # run_synthetic_data, 
+    # run_phone_numbers, 
+    # run_novel_instructions, 
+)
 # from synthetic_data import (
 #     get_vocab, 
 #     sample_multilevel_markov_chain, 
@@ -133,7 +136,9 @@ class GPT3:
                 extra = f' {rel} {y}'
             else:
                 extra = ''
+                rel = None
             print(f'[{len(examples)} examples] {x} -> {colored(predicted_y, RESPONSE_COLOR)}{extra}')
+        return response, rel
 
 class MockGPT3:
     def __init__(self, cache: Dict, default_generation_kwargs: Dict = DEFAULT_GENERATION_KWARGS):
@@ -179,17 +184,10 @@ class MockGPT3:
         kwargs['stop'] = '\n'
         response = self.make_query(**kwargs)
         print(prompt)
+        return response, None
 
-def main():
-    if 'openai' in sys.modules:
-        cache = read_cache()
-        gpt3 = GPT3(cache)
-    else:
-        cache_fname = 'cache_mockgpt3.jsonl'
-        cache = read_cache(cache_fname)
-        gpt3 = MockGPT3(cache)
-
-    # Generate free-form stuff
+def run_percy_tasks(gpt3):
+        # Generate free-form stuff
     for i in range(10):
         gpt3.complete(prompt='Hello!', max_tokens=100, random=i)
 
@@ -351,9 +349,26 @@ def main():
 
     # Things beyond few-shot learning (soft influence)
 
+def run_simple_test(gpt3):
+    gpt3.complete(prompt='Hello!', max_tokens=100, random=0)
+    gpt3.few_shot([], 'What is the tallest mountain?', max_tokens=100, random=0)
+
+def main():
+    if 'openai' in sys.modules:
+        cache = read_cache()
+        gpt3 = GPT3(cache)
+    else:
+        cache_fname = 'cache_mockgpt3.jsonl'
+        cache = read_cache(cache_fname)
+        gpt3 = MockGPT3(cache)
+
+    # run_percy_tasks(gpt3)
+
     # Begin section (frieda) =============================================================================
 
-    # run_task_suite(gpt3, cache, cache_fname)
+    run_task_suite(gpt3)
+    # run_synthetic_data(gpt3)
+    # run_novel_instructions(gpt3)
 
 if __name__ == '__main__':
     main()

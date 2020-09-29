@@ -1,12 +1,15 @@
 from collections import OrderedDict
 from enum import Enum, IntEnum
+import exrex 
 import json
 import numpy as np
 import os
 import pdb
 import random
+import re
 from typing import Any, Callable, Dict, List, Tuple, Optional
 from termcolor import colored
+import traceback
 
 from naclo_problems import run_naclo_test_suite
 from synthetic_data import (
@@ -298,21 +301,29 @@ def interact(self, tasks: Dict[str, Callable], task_flow: Dict[str, Dict], hooks
 # Novel classification: Mapping to interfaces
 
 # Task suite
-def run_task_suite(gpt3, cache, cache_fname):
+def run_task_suite(gpt3):
     tasks = [
-        run_data_cleaning, 
-        run_sequence_prediction, 
-        run_naclo_problems, 
-        run_novel_instructions, 
+        # # run_data_cleaning, 
+        # # run_sequence_prediction, 
+        # run_synthetic_data, 
+        # # run_naclo_problems, 
+        # run_novel_instructions, 
+        # run_phone_numbers, 
+        run_sort_length, 
+        run_capitals, 
     ]
     for task in tasks:
-        set_seed()
-        task(gpt3, cache, cache_fname)
+        try:
+            set_seed()
+            task(gpt3)
         # pdb.set_trace()
+        except Exception as e:
+            print(colored(e, 'red'))
+            traceback.print_exc()
 
-def run_data_cleaning(gpt3, cache, cache_fname):
+def run_data_cleaning(gpt3):
     # Data cleaning 
-    prefix = 'Reformat each phone number:'
+    prefix = 'Reformat each phone number:\n'
     train_examples = [
         ('4164904115', '[416] 490-4115'),
         ('528 333 2103', '[528] 333-2103'),
@@ -327,7 +338,7 @@ def run_data_cleaning(gpt3, cache, cache_fname):
     for x, y in train_examples + test_examples:
         gpt3.few_shot(train_examples, x=x, y=y, temperature=0, prefix=prefix, x_label='Original', y_label='Formatted')
 
-def run_sequence_prediction(gpt3, cache, cache_fname):
+def run_sequence_prediction(gpt3):
     # What does GPT-3 infer? 
     prompts = [
         ', '.join(list('aaa')), 
@@ -366,12 +377,7 @@ def run_sequence_prediction(gpt3, cache, cache_fname):
             # gpt3.complete(prompt=prompt.replace(',',''), temperature=0, random=i, max_tokens=50)
             # gpt3.complete(prompt='Exercise 1. Continue the pattern:\n' + prompt.replace(',',''), temperature=0, random=i, max_tokens=50)
 
-
-def run_naclo_problems(gpt3, cache, cache_fname):
-    # NACLO problems
-    run_naclo_test_suite(gpt3)
-
-def run_synthetic_data(gpt3, cache, cache_fname):
+def run_synthetic_data(gpt3):
     # Synthetic Markov Chains and HMMs
     for j in range(5):
         set_seed(j)
@@ -402,7 +408,7 @@ def run_synthetic_data(gpt3, cache, cache_fname):
                 gpt3.complete(prompt=prompt_full[:n_tokens], temperature=0.7, random=i, max_tokens=1024)
 
 
-def run_novel_instructions(gpt3, cache, cache_fname):
+def run_novel_instructions(gpt3):
     # Novel instructions 1: to borple a sequence of letters
     # Examples:
     # [
@@ -449,6 +455,232 @@ def run_novel_instructions(gpt3, cache, cache_fname):
     # pdb.set_trace()
     set_seed()
     test_copycat_remove(gpt3)
+
+def run_phone_numbers(gpt3):
+    set_seed()
+    prefix = 'Reformat the text:\n'
+
+    re_phone_numbers_1 = '\$1[0-9]{3}\$1\$2[0-9]{3}\$2[0-9]{4}' 
+    re_phone_numbers_longer = '\$1[0-9]{5,9}\$1\$2[0-9]{5,9}\$2[0-9]{5,9}\$2[0-9]{5,9}'
+    regex = re_phone_numbers_1
+    variants = [
+        [
+            lambda x: x.replace('$1','(',1).replace('$1',')',1), 
+            lambda x: x.replace('$1',''), 
+        ], 
+        [
+            lambda x: x.replace('$2','-'), 
+            lambda x: x.replace('$2',' '), 
+            lambda x: x.replace('$2',':'), 
+            lambda x: x.replace('$2','/'), 
+            lambda x: x.replace('$2','0'), 
+            lambda x: x.replace('$2','a'), 
+        ],
+    ]
+    def reformat_phone_numbers(x):
+        for variant_group in variants: 
+            x = variant_group[0](x)
+        return x
+
+    periods = np.insert(np.cumprod(list(map(len,variants))), 0, 1)
+    n_train_per_variant = 1
+    n_test_per_variant = 5
+    n_test_longer = periods[-1] * 3
+    n_train = periods[-1] * n_train_per_variant
+    n_test = periods[-1] * n_test_per_variant + n_test_longer
+    n_total = n_train + n_test + n_test_longer
+    xs = [exrex.getone(regex) for i in range(n_train + periods[-1] * n_test_per_variant)]
+    xs.extend(list(exrex.getone(re_phone_numbers_longer) for i in range(n_test_longer)))
+    ys = list(map(reformat_phone_numbers, xs))
+    variant_types = [[] for i in range(n_total)]
+    for variant_group, period in zip(variants, periods):
+        xs = [variant_group[(i // period) % len(variant_group)](x) for i, x in enumerate(xs)]
+        variant_types = [t + [(i // period) % len(variant_group)] for i, t in enumerate(variant_types)]
+
+    # shuffle https://stackoverflow.com/a/12974504
+    train_examples = list(zip(xs[:n_train], ys[:n_train]))
+    train_types = variant_types[:n_train]
+    train_examples, train_types = list(zip(*np.random.permutation(list(zip(train_examples, train_types)))))
+    
+    test_examples = list(zip(xs[n_train:], ys[n_train:]))
+    test_types = variant_types[n_train:]
+    test_examples, test_types = list(zip(*np.random.permutation(list(zip(test_examples, test_types)))))
+
+    for variant_id in range(len(variants[-1])):
+        cur_train_idxs = filter(lambda i: train_types[i][-1] == variant_id, range(len(train_examples)))
+        cur_train_examples = [train_examples[i] for i in cur_train_idxs]
+        for engine in ['davinci']: # ['ada', 'babbage', 'curie', 'davinci']:
+            score = 0 
+            for x, y in test_examples:
+                response, rel = gpt3.few_shot(cur_train_examples, x=x, y=y, temperature=0, prefix=prefix, engine=engine, max_tokens=150)
+                if rel == 'EQUALS':
+                    score += 1
+            print(colored('Engine: %s. Variant %d of %d' % (engine, variant_id+1, len(variants[-1])), 'magenta'))
+            print(colored('Score: %d/%d' % (score, len(test_examples)), 'magenta'))
+            print('')
+
+def run_generic(gpt3, prefix, regex, variants, reformat_func=None, xs=None, ys=None, n_train_per_variant=1, n_test_per_variant=5):
+    periods = np.insert(np.cumprod(list(map(len,variants))), 0, 1).astype(int)
+    n_train = periods[-1] * n_train_per_variant
+    n_test = periods[-1] * n_test_per_variant 
+    n_total = n_train + n_test 
+
+    if xs is None:
+        xs = [exrex.getone(regex) for i in range(n_total)]
+    if ys is None:
+        ys = list(map(reformat_func, xs))
+
+    variant_types = [[] for i in range(n_total)]
+    for variant_group, period in zip(variants, periods):
+        xs = [variant_group[(i // period) % len(variant_group)](x) for i, x in enumerate(xs)]
+        variant_types = [t + [(i // period) % len(variant_group)] for i, t in enumerate(variant_types)]
+
+    train_examples = list(zip(xs[:n_train], ys[:n_train]))
+    train_types = variant_types[:n_train]
+    train_examples, train_types = list(zip(*np.random.permutation(list(zip(train_examples, train_types)))))
+    
+    test_examples = list(zip(xs[n_train:], ys[n_train:]))
+    test_types = variant_types[n_train:]
+    test_examples, test_types = list(zip(*np.random.permutation(list(zip(test_examples, test_types)))))
+
+    for variant_id in range(len(variants[-1])):
+        cur_train_idxs = filter(lambda i: train_types[i][-1] == variant_id, range(len(train_examples)))
+        cur_train_examples = [train_examples[i] for i in cur_train_idxs]
+        for engine in ['davinci']: # ['ada', 'babbage', 'curie', 'davinci']:
+            score = 0 
+            for x, y in test_examples:
+                response, rel = gpt3.few_shot(cur_train_examples, x=x, y=y, temperature=0, prefix=prefix, engine=engine, max_tokens=150)
+                if rel == 'EQUALS':
+                    score += 1
+            print(colored('Engine: %s. Variant %d of %d' % (engine, variant_id+1, len(variants[-1])), 'magenta'))
+            print(colored('Score: %d/%d' % (score, len(test_examples)), 'magenta'))
+            print('')
+
+def run_sort_length(gpt3):
+    """Is GPT-3 aware of length?"""
+    set_seed()
+    prefix = 'Reformat the text:\n'
+
+    re_sort_length = '[A-Z]{30}'
+    regex = re_sort_length
+
+    def reformat_sort_length(x):
+        chars = x[0]
+        order = np.argsort(x[1])
+        cum_sizes = np.insert(np.cumsum(x[1]), 0, 0)
+        words = []
+        for i in range(len(cum_sizes)-1):
+            words += [chars[cum_sizes[i]:cum_sizes[i+1]]]
+        return ' '.join([words[i] for i in order])
+
+    def reformat(x):
+        chars = x[0]
+        cum_sizes = np.insert(np.cumsum(x[1]), 0, 0)
+        words = []
+        for i in range(len(cum_sizes)-1):
+            words += [chars[cum_sizes[i]:cum_sizes[i+1]]]
+        return '$1'.join(words)
+
+    variants = [
+        [
+            lambda x: x.replace('$1',', '),
+            lambda x: x.replace('$1',' | '), 
+            lambda x: x.replace('$1','('), 
+            lambda x: x.replace('$1',' VVV '), 
+        ], 
+    ]
+    periods = np.insert(np.cumprod(list(map(len,variants))), 0, 1)
+    n_train_per_variant = 5
+    n_test_per_variant = 5
+    n_train = periods[-1] * n_train_per_variant
+    n_test = periods[-1] * n_test_per_variant 
+    n_total = n_train + n_test 
+
+    xs_1 = [exrex.getone(regex) for i in range(n_total)]
+    xs_2 = [np.random.choice(range(1,10), 4, replace=False).astype(int) for i in range(n_total)]
+    xs_temp = list(zip(xs_1, xs_2))
+    ys = list(map(reformat_sort_length, xs_temp))
+    xs = list(map(reformat, xs_temp))
+    # print(list(zip(xs, ys)))
+
+    # run_generic(gpt3, prefix, regex, variants, xs=xs, ys=ys)
+    variant_types = [[] for i in range(n_total)]
+    for variant_group, period in zip(variants, periods):
+        xs = [variant_group[(i // period) % len(variant_group)](x) for i, x in enumerate(xs)]
+        variant_types = [t + [(i // period) % len(variant_group)] for i, t in enumerate(variant_types)]
+
+    train_examples = list(zip(xs[:n_train], ys[:n_train]))
+    train_types = variant_types[:n_train]
+    train_examples, train_types = list(zip(*np.random.permutation(list(zip(train_examples, train_types)))))
+    
+    test_examples = list(zip(xs[n_train:], ys[n_train:]))
+    test_types = variant_types[n_train:]
+    test_examples, test_types = list(zip(*np.random.permutation(list(zip(test_examples, test_types)))))
+
+    for variant_id in range(len(variants[-1])):
+        cur_train_idxs = filter(lambda i: train_types[i][-1] == variant_id, range(len(train_examples)))
+        cur_train_examples = [train_examples[i] for i in cur_train_idxs]
+        cur_test_idxs = filter(lambda i: test_types[i][-1] == variant_id, range(len(test_examples)))
+        cur_test_examples = [test_examples[i] for i in cur_test_idxs]
+        for engine in ['davinci']: # ['ada', 'babbage', 'curie', 'davinci']:
+            score = 0 
+            for x, y in cur_test_examples:
+                response, rel = gpt3.few_shot(cur_train_examples, x=x, y=y, temperature=0, prefix=prefix, engine=engine, max_tokens=150)
+                if rel == 'EQUALS':
+                    score += 1
+            print(colored('Engine: %s. Variant %d of %d' % (engine, variant_id+1, len(variants[-1])), 'magenta'))
+            print(colored('Score: %d/%d' % (score, len(test_examples)), 'magenta'))
+            print('')
+
+def run_capitals(gpt3):
+    """Can GPT-3 filter out capitals?"""
+    set_seed()
+    prefix = 'Reformat the text by deleting all capital letters:\n'
+
+    regex = '[A-Za-z' + ' ' * 10 + ']{20,30}'
+
+    def reformat(x):
+        return ''.join(list(filter(lambda s: s.islower() or s == ' ', list(x))))
+
+    # xs = [exrex.getone(regex) for i in range(n_total)]
+    # ys = list(map(reformat, xs))
+    # print(list(zip(xs, ys)))
+
+    variants = [
+        [
+            lambda x: x,
+        ]
+    ]
+    run_generic(gpt3, prefix, regex, variants, reformat)
+
+# def run_abc(gpt3):
+#     """Can GPT-3 pattern match?"""
+#     set_seed()
+#     prefix = 'Reformat the text:\n'
+
+#     regex = '([A-Za-z]{4,8}){4}'
+
+#     n_train = 5
+#     n_test = 5
+#     regex = '([A-D] ){3,6};(True|False)'
+#     def nl(x):
+#         is_nl = eval(x.split(';')[-1])
+
+#     variants = [
+#         [
+#             lambda x: x.replace('A','')
+#         ]
+#     ]
+#     def reformat(x):
+#         return 
+
+#     xs_1 = [exrex.getone(regex) for i in range(n_total)]
+#     xs_2 = [np.random.choice(range(1,10), 4, replace=False).astype(int) for i in range(n_total)]
+#     xs_temp = list(zip(xs_1, xs_2))
+#     ys = list(map(reformat, xs_temp))
+
+#     for i in range():
+
 
 if __name__ == '__main__':
     set_seed()
