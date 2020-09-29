@@ -550,7 +550,7 @@ def run_generic(gpt3, prefix, regex, variants, reformat_func=None, xs=None, ys=N
             score = 0 
             for x, y in test_examples:
                 response, rel = gpt3.few_shot(cur_train_examples, x=x, y=y, temperature=0, prefix=prefix, engine=engine, max_tokens=150)
-                if rel == 'EQUALS':
+                if 'EQUALS' in rel:
                     score += 1
             print(colored('Engine: %s. Variant %d of %d' % (engine, variant_id+1, len(variants[-1])), 'magenta'))
             print(colored('Score: %d/%d' % (score, len(test_examples)), 'magenta'))
