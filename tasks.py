@@ -308,7 +308,7 @@ def run_task_suite(gpt3):
         # run_synthetic_data, 
         # # run_naclo_problems, 
         # run_novel_instructions, 
-        # run_phone_numbers, 
+        run_phone_numbers, 
         run_sort_length, 
         run_capitals, 
     ]
