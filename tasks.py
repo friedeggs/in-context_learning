@@ -460,7 +460,7 @@ def run_phone_numbers(gpt3):
     set_seed()
     prefix = 'Reformat the text:\n'
 
-    re_phone_numbers_1 = '\$1[0-9]{3}\$1\$2[0-9]{3}\$2[0-9]{4}' 
+    re_phone_numbers_1 = '\$1[0-9]{3}\$1 [0-9]{3}\$2[0-9]{4}' 
     re_phone_numbers_longer = '\$1[0-9]{5,9}\$1 [0-9]{5,9}\$2[0-9]{5,9}\$2[0-9]{5,9}'
     regex = re_phone_numbers_1
     variants = [
