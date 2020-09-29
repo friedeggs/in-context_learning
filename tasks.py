@@ -483,7 +483,7 @@ def run_phone_numbers(gpt3):
         return x
 
     periods = np.insert(np.cumprod(list(map(len,variants))), 0, 1)
-    n_train_per_variant = 1
+    n_train_per_variant = 5
     n_test_per_variant = 5
     n_test_longer = periods[-1] * 3
     n_train = periods[-1] * n_train_per_variant
