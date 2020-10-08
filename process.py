@@ -1,22 +1,24 @@
 from collections import OrderedDict
 import json
+from Levenshtein import distance as levenshtein
 import numpy as np
 import os
 import random
 import sys
 from typing import Any, Callable, Dict, List, Tuple, Optional
 from termcolor import colored
+from tqdm import tqdm
 
 # from naclo_problems import run_naclo_test_suite
-from tasks import (
-    # gen_borple_1, gen_borple_2, gen_borple_3, 
-    # test_copycat_remove, 
-    # gen_substitute_1, gen_substitute_2, 
-    run_task_suite, 
-    # run_synthetic_data, 
-    # run_phone_numbers, 
-    # run_novel_instructions, 
-)
+# from tasks import (
+#     # gen_borple_1, gen_borple_2, gen_borple_3, 
+#     # test_copycat_remove, 
+#     # gen_substitute_1, gen_substitute_2, 
+#     run_task_suite, 
+#     run_synthetic_data, 
+#     # run_phone_numbers, 
+#     # run_novel_instructions, 
+# )
 # from synthetic_data import (
 #     get_vocab, 
 #     sample_multilevel_markov_chain, 
@@ -38,7 +40,7 @@ except Exception as e:
 
 DEFAULT_CACHE_PATH = 'cache.jsonl'
 
-HEADER_COLOR = 'green'
+HEADER_COLOR = 'magenta'
 RESPONSE_COLOR = 'red'
 
 DEFAULT_GENERATION_KWARGS = {
@@ -46,7 +48,7 @@ DEFAULT_GENERATION_KWARGS = {
 }
 
 def make_header(s: Any):
-    return colored(f'===== {s}', 'green')
+    return colored(f'===== {s}', HEADER_COLOR)
 
 def get_key(request):
     if isinstance(request, str):
@@ -88,8 +90,11 @@ class GPT3:
 
     def make_query(self, **kwargs) -> Dict:
         key = get_key(kwargs)
-        if key in self.cache:
-            response = self.cache[key]
+        _key = get_key({k: v for k, v in kwargs.items() if k != 'staged'})
+        if _key in self.cache:
+            response = self.cache[_key]
+        elif 'staged' in kwargs:
+            self.cache[key] = response = None
         else:
             kwargs = dict(kwargs)
             if 'random' in kwargs:
@@ -99,6 +104,49 @@ class GPT3:
             write_cache(self.cache)
         return response
 
+    def clear_staged_queries(self):
+        staged = {key: value for key, value in self.cache.items() if key != '__filename__' and ('staged', True) in key}
+        for key in staged.keys():
+            del self.cache[key]
+        write_cache(self.cache)
+
+    def run_staged_queries(self):
+        staged = {key: value for key, value in self.cache.items() if key != '__filename__' and ('staged', True) in key}
+        if not staged:
+            return
+        k = None
+        while k not in list('ynqc'):
+            k = input(f"Submit {len(staged)} staged request(s) to the server? [y/n/q/c] ")
+        if k not in list('yc'):
+            return
+        cntr = 0
+        for _, (key, value) in zip(tqdm(staged), staged.items()):
+            if cntr > 0:
+                cntr -= 1
+                # if cntr > 0 and cntr % 5 == 0:
+                #     print('%d staged requests left to skip' % cntr)
+                continue
+            print(key)
+            kwargs = dict(key)
+            del kwargs['staged']
+            print(kwargs['prompt'])
+            if k == 'c':
+                k2 = 'x'
+                while k2[0] not in list('ynqs'):
+                    k2 = input(f"Submit this staged request to the server? [y/n/q/s <num>] ")
+                if k2 == 'q':
+                    return 
+                if k2 == 'n':
+                    continue
+                if k2[0] == 's':
+                    cntr = int(k2[2:])
+                    print('Skipping %d staged requests' % cntr)
+            response = self.make_query(**kwargs)
+            print(colored(response['choices'][0]['text'], 'yellow'))
+        for key in staged.keys():
+            del self.cache[key]
+        write_cache(self.cache)
+
     def complete(self, **kwargs):
         kwargs = {**self.default_generation_kwargs, **kwargs}
         response = self.make_query(**kwargs) 
@@ -106,15 +154,16 @@ class GPT3:
         del kwargs['prompt']
         print(make_header(kwargs))
         print(prompt, end='')
-        for choice in response['choices']:
-            print(colored(choice['text'], RESPONSE_COLOR))
+        if response is not None:
+            for choice in response['choices']:
+                print(colored(choice['text'], RESPONSE_COLOR))
         print('')
 
-    def few_shot(self, examples: List[Tuple[str, str]], x: str, y: Optional[str] = None, prefix: Optional[str] = None, x_label: str = 'Input', y_label: str = 'Output', **kwargs):
+    def few_shot(self, examples: List[Tuple[str, str]], x: str, y: Optional[str] = None, prefix: Optional[str] = None, x_label: str = 'Input', y_label: str = 'Output', return_kwargs: bool = False, **kwargs):
         kwargs = {**self.default_generation_kwargs, **kwargs}
         prompt = f'{x_label}: {x}\n{y_label}:'
         if len(examples) > 0:
-            prompt = '\n'.join([f'{x_label}: {x}\n{y_label}: {y}\n' for x, y in examples]) + '\n' + prompt
+            prompt = '\n'.join([f'{x_label}: {x}\n{y_label}: {y}' for x, y in examples]) + '\n' + prompt
         if prefix is not None:
             prompt = prefix + '\n' + prompt
         kwargs['prompt'] = prompt
@@ -124,21 +173,27 @@ class GPT3:
         #del kwargs['prompt']
         print(make_header(kwargs))
         # print(prompt, end='')
-        for choice in response['choices']:
-            predicted_y = choice['text'].lstrip().rstrip()
-            if y is not None:  # Correct answer given
-                if y == predicted_y:
-                    rel = colored('EQUALS', 'green')
-                elif y in predicted_y:
-                    rel = colored('CONTAINS', 'yellow')
+        rel = None
+        if response is not None:
+            for choice in response['choices']:
+                predicted_y = choice['text'].lstrip().rstrip()
+                if y is not None:  # Correct answer given
+                    if y == predicted_y:
+                        rel = colored('EQUALS', 'green')
+                    elif y in predicted_y:
+                        rel = colored('CONTAINS', 'yellow')
+                    elif 1. * levenshtein(y, predicted_y) / max(len(y), len(predicted_y)) <= .2:
+                        rel = colored('CLOSE', 'magenta')
+                    else:
+                        rel = 'NOT EQUALS'
+                    extra = f' {rel} {y}'
                 else:
-                    rel = 'NOT EQUALS'
-                extra = f' {rel} {y}'
-            else:
-                extra = ''
-                rel = None
-            print(f'[{len(examples)} examples] {x} -> {colored(predicted_y, RESPONSE_COLOR)}{extra}')
-        return response, rel
+                    extra = ''
+                print(f'[{len(examples)} examples] {x} -> {colored(predicted_y, RESPONSE_COLOR)}{extra}')
+        retval = [response, rel]
+        if return_kwargs:
+            retval.append(kwargs)
+        return retval
 
 class MockGPT3:
     def __init__(self, cache: Dict, default_generation_kwargs: Dict = DEFAULT_GENERATION_KWARGS):
@@ -171,20 +226,66 @@ class MockGPT3:
             print(colored(choice['text'], RESPONSE_COLOR))
         print('')
 
-    def few_shot(self, examples: List[Tuple[str, str]], x: str, y: Optional[str] = None, prefix: Optional[str] = None, x_label: str = 'Input', y_label: str = 'Output', **kwargs):
+    def few_shot(self, examples: List[Tuple[str, str]], x: str, y: Optional[str] = None, prefix: Optional[str] = None, x_label: str = 'Input', y_label: str = 'Output', return_kwargs: bool = False, **kwargs):
         kwargs = {**self.default_generation_kwargs, **kwargs}
         prompt = f'{x_label}: {x}\n{y_label}:'
         if len(examples) > 0:
-            prompt = '\n'.join([f'{x_label}: {x}\n{y_label}: {y}\n' for x, y in examples]) + '\n' + prompt
+            prompt = '\n'.join([f'{x_label}: {x}\n{y_label}: {y}' for x, y in examples]) + '\n' + prompt
         if prefix is not None:
             prompt = prefix + '\n' + prompt
         if y is not None:
-            prompt += ' ' + y
+            prompt += ' ' + colored(y, 'yellow')
         kwargs['prompt'] = prompt
         kwargs['stop'] = '\n'
         response = self.make_query(**kwargs)
         print(prompt)
-        return response, None
+        retval = [response, None]
+        if return_kwargs:
+            retval.append(kwargs)
+        return retval
+
+    def clear_staged_queries(self):
+        staged = {key: value for key, value in self.cache.items() if key != '__filename__' and ('staged', True) in key}
+        for key in staged.keys():
+            del self.cache[key]
+        write_cache(self.cache)
+
+    def run_staged_queries(self):
+        staged = {key: value for key, value in self.cache.items() if key != '__filename__' and ('staged', True) in key}
+        if not staged:
+            return
+        k = None
+        while k not in list('ynqc'):
+            k = input(f"Pretend to submit {len(staged)} staged request(s) to the server? [y/n/q/c] ")
+        if k not in list('yc'):
+            return
+        cntr = 0
+        for _, (key, value) in zip(tqdm(staged), staged.items()):
+            if cntr > 0:
+                cntr -= 1
+                # if cntr > 0 and cntr % 5 == 0:
+                #     print('%d staged requests left to skip' % cntr)
+                continue
+            print(key)
+            kwargs = dict(key)
+            del kwargs['staged']
+            print(kwargs['prompt'])
+            if k == 'c':
+                k2 = 'x'
+                while k2[0] not in list('ynqs'):
+                    k2 = input(f"Pretend to submit this staged request to the server? [y/n/q/s <num>] ")
+                if k2 == 'q':
+                    return 
+                if k2 == 'n':
+                    continue
+                if k2[0] == 's':
+                    cntr = int(k2[2:])
+                    print('Skipping %d staged requests' % cntr)
+            response = self.make_query(**kwargs)
+            print(colored(response['choices'][0]['text'], 'yellow'))
+        for key in staged.keys():
+            del self.cache[key]
+        write_cache(self.cache)
 
 def run_percy_tasks(gpt3):
         # Generate free-form stuff
@@ -353,8 +454,8 @@ def run_simple_test(gpt3):
     gpt3.complete(prompt='Hello!', max_tokens=100, random=0)
     gpt3.few_shot([], 'What is the tallest mountain?', max_tokens=100, random=0)
 
-def main():
-    if 'openai' in sys.modules:
+def main(argv):
+    if 'submit' in argv:
         cache = read_cache()
         gpt3 = GPT3(cache)
     else:
@@ -366,9 +467,9 @@ def main():
 
     # Begin section (frieda) =============================================================================
 
-    run_task_suite(gpt3)
+    # run_task_suite(gpt3)
     # run_synthetic_data(gpt3)
     # run_novel_instructions(gpt3)
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv)

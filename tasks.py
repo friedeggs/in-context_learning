@@ -513,7 +513,7 @@ def run_phone_numbers(gpt3):
             score = 0 
             for x, y in test_examples:
                 response, rel = gpt3.few_shot(cur_train_examples, x=x, y=y, temperature=0, prefix=prefix, engine=engine, max_tokens=150)
-                if rel == 'EQUALS':
+                if 'EQUALS' in rel:
                     score += 1
             print(colored('Engine: %s. Variant %d of %d' % (engine, variant_id+1, len(variants[-1])), 'magenta'))
             print(colored('Score: %d/%d' % (score, len(test_examples)), 'magenta'))
@@ -626,7 +626,7 @@ def run_sort_length(gpt3):
             score = 0 
             for x, y in cur_test_examples:
                 response, rel = gpt3.few_shot(cur_train_examples, x=x, y=y, temperature=0, prefix=prefix, engine=engine, max_tokens=150)
-                if rel == 'EQUALS':
+                if 'EQUALS' in rel:
                     score += 1
             print(colored('Engine: %s. Variant %d of %d' % (engine, variant_id+1, len(variants[-1])), 'magenta'))
             print(colored('Score: %d/%d' % (score, len(test_examples)), 'magenta'))
@@ -680,6 +680,7 @@ def run_capitals(gpt3):
 #     ys = list(map(reformat, xs_temp))
 
 #     for i in range():
+
 
 
 if __name__ == '__main__':

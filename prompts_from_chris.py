@@ -85,12 +85,12 @@ Examples:
     # Longstwhile: aisle, bile, file, guile, isle, mile, ...
     # Ruzzurtle: turtle, fertile, hurtle, kirtle, myrtle, infertile
 
-def main():
-    GPT = GPT3 if 'openai' in sys.modules else MockGPT3
+def main(argv):
+    GPT = GPT3 if 'submit' in argv else MockGPT3
     cache_fname = f'cache_chris_{GPT.__name__}.jsonl'
     cache = read_cache(cache_fname)
     gpt3 = GPT(cache)
     run_chris_tasks(gpt3)
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv)
