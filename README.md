@@ -18,6 +18,7 @@ Once done, ping Percy / Frieda to re-run the script which should now include you
 API documentation for the `openai.Completion.create` function is here:
 <!-- ![OpenAI GPT-3 API documentation](API_documentation.png){:height="700px" width="400px"} -->
 <img src="API_documentation.png" width="700">
+
 and [copy+pasted here with a few additional options](https://docs.google.com/document/d/1iLeez_3vCMuRZitx1-SiE3-dG0U3mNCJrVtWWi3FHZE/edit#heading=h.rt93chqs6g9e) (like `frequency_penalty` and `presence_penalty`). 
 
 There are four main engines, in order of smallest to largest: `ada`, `babbage`, `curie`, `davinci`. By default, the engine in `process.py` is set to `davinci` (see `DEFAULT_GENERATION_KWARGS`).
