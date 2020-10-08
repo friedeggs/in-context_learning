@@ -203,6 +203,8 @@ class MockGPT3:
         self.cache = cache
         self.default_generation_kwargs = default_generation_kwargs
 
+        self.clear_staged_queries()
+
     def make_query(self, **kwargs) -> Dict:
         key = get_key(kwargs)
         if key in self.cache:
@@ -285,7 +287,8 @@ class MockGPT3:
                     cntr = int(k2[2:])
                     print('Skipping %d staged requests' % cntr)
             response = self.make_query(**kwargs)
-            print(colored(response['choices'][0]['text'], 'yellow'))
+            if response is not None and response['choices']:
+                print(colored(response['choices'][0]['text'], 'yellow'))
         for key in staged.keys():
             del self.cache[key]
         write_cache(self.cache)
