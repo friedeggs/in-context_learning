@@ -44,7 +44,8 @@ HEADER_COLOR = 'magenta'
 RESPONSE_COLOR = 'red'
 
 DEFAULT_GENERATION_KWARGS = {
-    'engine': 'davinci'
+    'engine': 'davinci',
+    'staged': True,
 }
 
 def make_header(s: Any):
@@ -87,6 +88,8 @@ class GPT3:
     def __init__(self, cache: Dict, default_generation_kwargs: Dict = DEFAULT_GENERATION_KWARGS):
         self.cache = cache
         self.default_generation_kwargs = default_generation_kwargs
+
+        self.clear_staged_queries()
 
     def make_query(self, **kwargs) -> Dict:
         key = get_key(kwargs)

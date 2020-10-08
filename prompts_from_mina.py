@@ -34,7 +34,6 @@ def background_knowledge_test(gpt3, prefix=''):
     gpt3.complete(
         prompt=f'''{prefix}She stared at him through the window.
 She glimpsed him through the window.
-
 Q. What is the difference between "stared at" and "glimpsed" in the sentences?
 A.''',
         top_p=0.1,
@@ -44,7 +43,6 @@ A.''',
     gpt3.complete(
         prompt=f'''{prefix}She stared at him through the window.
 She glimpsed him through the window.
-
 In these sentences, "stared at" and "glimpsed" have the same meaning because''',
         top_p=0.1,
         n=3,
@@ -53,7 +51,6 @@ In these sentences, "stared at" and "glimpsed" have the same meaning because''',
     gpt3.complete(
         prompt=f'''{prefix}She stared at him through the window.
 She glimpsed him through the window.
-
 In these sentences, "stared at" and "glimpsed" have different meanings because''',
         top_p=0.1,
         n=3,
@@ -110,6 +107,7 @@ def question_answering(gpt3, prefix=''):
             prompt = f'{prefix}{s}\n\nQ. Is "{wprime}" a good synonym for "{w}" in this sentence? Why or why not?\nA.'
             gpt3.complete(
                 prompt=prompt,
+                max_tokens=100,
             )
 
 
@@ -130,14 +128,14 @@ def run_tasks(gpt3, prefix=''):
         task(gpt3, prefix=background_knowledge)
 
 
-def main():
-    GPT = GPT3 if 'openai' in sys.modules else MockGPT3
+def main(argv):
+    GPT = GPT3 if 'submit' in argv else MockGPT3
     cache_fname = f'cache_mina_{GPT.__name__}.jsonl'
     cache = read_cache(cache_fname)
     gpt3 = GPT(cache)
-
     run_tasks(gpt3)
+    gpt3.run_staged_queries()
 
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv)
