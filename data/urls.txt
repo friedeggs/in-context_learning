@@ -1,0 +1,119 @@
+https://www.google.ca/search?q=how+to+write+a+transpiler&sa=X&ved=0ahUKEwiL3bee-dHdAhVK9YMKHWwLC8kQ1QIIuQEoAw&biw=1420&bih=733 | how to write a transpiler - Google Search
+https://en.wikipedia.org/wiki/Source-to-source_compiler | Source-to-source compiler - Wikipedia
+https://www.stevefenton.co.uk/2012/11/compiling-vs-transpiling/ | Compiling vs Transpiling - Steve Fenton
+https://babeljs.io/ | Babel · The compiler for next generation JavaScript
+https://simpleprogrammer.com/webassembly-finally-freed-javascript/ | WebAssembly: Finally Freed from JavaScript? - Simple Programmer
+https://www.semanticscholar.org/paper/Migrating-Legacy-Fortran-to-Python-While-Retaining-Bysiek-Drozd/ae3d28f2a6751e8f42407c645d9580c354531273 | Migrating Legacy Fortran to Python While Retaining Fortran-Level Performance through Transpilation and Type Hints - Semantic Scholar
+https://en.wikipedia.org/wiki/JavaScript#History | JavaScript - Wikipedia
+https://stackoverflow.com/questions/29193069/how-do-i-start-writing-a-transpiler-is-it-even-possible | compiler construction - How do I start writing a transpiler? Is it even possible? - Stack Overflow
+https://haxe.org/ | Home - Haxe - The Cross-platform Toolkit
+https://www.crunchbase.com/organization/semantic-designs#section-overview | Semantic Designs | Crunchbase
+https://www.quora.com/profile/Ira-Baxter | Ira Baxter - Quora
+http://www.semanticdesigns.com/Products/Services/NorthropGrummanB2.html | Semantic Designs: Northrop Grumman, B-2, JOVIAL, Migration
+http://lisperator.net/pltut/ | How to implement a programming language (tutorial for beginners)
+https://hackernoon.com/creating-a-scripting-language-with-antlr-part-1-1b42c3e4d718 | Creating a Scripting Language with ANTLR — Part 1 – Hacker Noon
+https://en.wikipedia.org/wiki/Quine_(computing) | Quine (computing) - Wikipedia
+https://github.com/mame/quine-relay | mame/quine-relay: An uroboros program with 100+ programming languages
+https://github.com/mame/quine-relay/issues/11 | Why? · Issue #11 · mame/quine-relay
+https://www.reddit.com/r/programming/comments/1kewa7/ouroboros_programs_are_not_multiquines_this_is_a/ | Ouroboros programs are not multiquines. This is a multiquine. : programming
+https://www.google.ca/search?biw=1420&bih=733&ei=suqnW6nkNeS4jwSon4moBA&q=convert+python+code+to+c%2B%2B+&oq=convert+python+code+to+c%2B%2B+&gs_l=psy-ab.3..35i39k1j0i22i30k1l3.250.1477.0.8021.6.6.0.0.0.0.180.704.3j3.6.0....0...1c.1.64.psy-ab..0.6.702...0i67k1.0.CoSBilNc_V8 | convert python code to c++ - Google Search
+https://github.com/pybee/seasnake | pybee/seasnake: A tool to convert C++ code to Python code.
+https://pybee.org/ | Build native apps with Python.— BeeWare
+https://github.com/andreikop/cpp2python | andreikop/cpp2python: C++ to Python converter
+https://stackoverflow.com/questions/11792529/c-to-simpler-language-python-lua-etc-converter | C++ to simpler language (Python, Lua, etc) converter? - Stack Overflow
+https://github.com/davidjamesca/ctypesgen | davidjamesca/ctypesgen: Pure-python wrapper generator for ctypes
+http://www.cplusplus.com/forum/unices/171510/ | Generate python code out of C++ - C++ Forum
+https://www.daniweb.com/programming/software-development/threads/475463/convert-c-code-to-python-code | convert c++ code to python code - Software Development | DaniWeb
+https://www.quora.com/Are-there-any-applications-that-convert-Python-code-to-C++-code-automatically | Are there any applications that convert Python code to C++ code automatically? - Quora
+http://nuitka.net/ | Nuitka Home | Nuitka Home
+https://stackoverflow.com/questions/15303107/how-to-convert-python-source-code-to-c-source-code | How to convert python source code to C++ source code - Stack Overflow
+https://www.quora.com/What-is-the-best-way-to-convert-python-to-c++ | What is the best way to convert python to c++? - Quora
+https://www.quora.com/How-do-I-convert-PHP-and-NET-code-into-Python-code | How do I convert PHP and .NET code into Python code? - Quora
+http://www.semdesigns.com/Products/DMS/DMSToolkit.html?site=Quora | DMS Software Reengineering Toolkit
+https://stackoverflow.com/questions/4116596/converting-python-code-to-php | Converting Python Code to PHP - Stack Overflow
+https://www.ibm.com/support/knowledgecenter?origURL=api/redirect/radhelp/v8r5/advanced/images/e_synch_toc_nav.gif | IBM Knowledge Center - Home of IBM product documentation
+https://www.heirloomcomputing.com/ | Transform COBOL and PL/I to Java | Heirloom ComputingHeirloom Computing
+https://sourceforge.net/projects/opencobol2java/ | RES - An Open Cobol To Java Translator download | SourceForge.net
+http://kumaran.com/products/cobol-migration-nxtran/ | Cobol to Java .Net Conversion | Mainframe Modernization & Migration
+http://coderenovator.com/cgi-sys/suspendedpage.cgi | Account Suspended
+https://www.google.ca/search?ei=kOunW7rmPOjVjwSC1JvACw&q=datasource+inc&oq=datasource+inc&gs_l=psy-ab.3..0j0i22i30k1l9.1984.2697.0.3068.4.3.0.1.1.0.161.376.0j3.3.0....0...1c.1.64.psy-ab..0.4.379...0i67k1.0.O5U-5VIwTPc | datasource inc - Google Search
+https://www.google.ca/search?q=why+didn%27t+facebook+use+a+php+converter&oq=why+didn%27t+facebook+use+a+php+converter&aqs=chrome..69i57.5420j0j1&sourceid=chrome&ie=UTF-8 | why didn't facebook use a php converter - Google Search
+https://code.fb.com/developer-tools/announcing-the-hack-transpiler/ | Announcing the Hack Transpiler – Facebook Code
+https://www.quora.com/Why-does-Facebook-convert-its-PHP-code-to-C++ | Why does Facebook convert its PHP code to C++? - Quora
+https://www.facebook.com/notes/facebook-engineering/meet-a-facebook-engineer-keith-adams/10150468262893920 | Meet a Facebook Engineer: Keith Adams
+https://www.facebook.com/Engineering/videos/432864835468/ | Typeahead Search Tech Talk (6/15/2010)
+https://softwareengineering.stackexchange.com/questions/176435/why-does-facebook-convert-php-code-to-c | Why does Facebook convert PHP code to C++? - Software Engineering Stack Exchange
+https://developers.facebook.com/blog/post/2010/02/02/hiphop-for-php--move-fast/ | HipHop for PHP: Move Fast - Facebook for Developers
+https://github.com/facebook/hhvm/wiki | Home · facebook/hhvm Wiki · GitHub
+https://www.google.ca/search?ei=-c6mW7PyCMaPjwS6ypLYCQ&q=pursuing+acquisition+startup+software+ycombinator&oq=pursuing+acquisition+startup+software+ycombinator&gs_l=psy-ab.3..33i160k1.98363.99719.0.99871.12.10.0.0.0.0.232.1001.0j6j1.7.0....0...1c.1.64.psy-ab..5.6.769....0.I8tLIh66jmw | pursuing acquisition startup software ycombinator - Google Search
+https://medium.com/@jproco/how-to-get-your-startup-acquired-e67f2a5528d8 | How To Get Your Startup Acquired – Joe Procopio – Medium
+https://www.inc.com/john-boitnott/how-to-boost-your-businesss-odds-of-an-acquisition.html | Exclusive Report: Hundreds of Female Founders Speak Out on Ambition, Politics, and #MeToo | Inc.com
+https://www.infoworld.com/article/2672735/techology-business/venture-capitalist-to-startups--don-t-pursue-acquisition-by-microsoft.html | Venture capitalist to startups: Don't pursue acquisition by Microsoft | InfoWorld
+https://news.ycombinator.com/item?id=17639768 | Ask HN: How to pursue acquisition? | Hacker News
+https://news.ycombinator.com/item?id=15314663 | Ask HN: Sell my startup for $14M because I can't raise $2M? | Hacker News
+https://blog.ycombinator.com/advice-startup-acquisitions/ | Mailgun’s Advice on Startup Acquisitions
+https://www.google.ca/search?q=waymo+simulation&oq=waymo+sim&aqs=chrome.0.0j69i57j0l4.4039j0j7&sourceid=chrome&ie=UTF-8 | waymo simulation - Google Search
+https://waymo.com/joinus/1232222/ | Software Engineer, Simulation Realism – Waymo
+https://waymo.com/tech/ | Technology – Waymo
+https://www.theatlantic.com/technology/archive/2017/08/inside-waymos-secret-testing-and-simulation-facilities/537648/ | Inside Waymo's Secret World for Training Self-Driving Cars - The Atlantic
+https://www.businessinsider.com/waymo-engineer-explains-why-testing-self-driving-cars-virtually-is-critical-2018-8 | Waymo engineer explains why testing self-driving cars virtually is critical - Business Insider
+https://www.engadget.com/2017/09/11/waymo-self-driving-car-simulator-intersection/ | Waymo simulation is teaching self-driving cars invaluable skills
+https://www.engadget.com/2017/08/23/waymo-virtual-world-carcraft/ | 'Carcraft' is Waymo's virtual world for autonomous vehicle testing
+https://www.vox.com/2018/8/8/17663950/crazy-rich-asians-movie-5-things-to-know | Crazy Rich Asians: 5 things to know about the summer’s best romantic comedy - Vox
+https://www.hollywoodreporter.com/features/crazy-rich-asians-story-behind-rom-com-1130965 | 'Crazy Rich Asians': How the Asian Rom-Com Happened Without Netflix | Hollywood Reporter
+https://www.forbes.com/sites/timferguson/2018/09/05/crazy-rich-asians-and-the-world-thats-their-oyster/#20ebfb2b5961 | Crazy Rich Asians And The World That's Their Oyster
+https://www.youtube.com/watch?v=ZQ-YX-5bAs0 | CRAZY RICH ASIANS - Official Trailer 1 - YouTube
+https://www.cosmopolitan.com/entertainment/movies/a13136581/crazy-rich-asians-movie-release-date-cast/ | Everything You Need to Know About the 'Crazy Rich Asians' Movie - Crazy Rich Asians Cast, Release Date, Plot
+https://activities.tjhsst.edu/sct/lectures/1516/SCT_Tarjans_Algorithm.pdf | SCT_Tarjans_Algorithm.pdf
+https://careers.google.com/jobs?hl=en-US&jlo=en-US&src=Online/Uncategorized/googlejobsalerts&utm_source=googlejobs&utm_medium=email&utm_term=machine+learning+intern&a_notify=aHR0cHM6Ly93d3cuZ29vZ2xlLWFuYWx5dGljcy5jb20vY29sbGVjdD92PTEmdGlkPVVBLTE4MDI1LTEmZXY9MSZ0PWV2ZW50JmVjPW5vcm1hbF9vcGVyYXRpb24mZWE9Y2xpY2t0aHJvdWdoJmVsPW5vcm1hbF9vcGVyYXRpb24mY2lkPTNkMTI3YjJhLTAwMDEtNDdjYi1hMDRiLTZmODliODc2OThiOA%3D%3D&utm_content=see_all&utm_campaign=jobalerts#!t=jo&jid=/google/software-engineering-intern-phd-winter-355-main-st-cambridge-ma-02142-usa-4089260337& | Software Engineering Intern, PhD, Winter 2019 - Google - 355 Main St, Cambridge, MA 02142 - Google Careers
+http://www.veryquiet.com/news.php?category=world_news&format=wide_small&language=en&target=new | Interesting news from around the world
+https://learn.uwaterloo.ca/d2l/lms/dropbox/user/folders_list.d2l?isprv=False&bp=0&ou=399142 | Dropbox Folders - PD 6 Online - Fall 2018 - University of Waterloo
+https://learn.uwaterloo.ca/d2l/le/content/399142/viewContent/2263954/View | Unit 01: Introduction - PD 6 Online - Fall 2018
+https://learn.uwaterloo.ca/d2l/le/content/399142/viewContent/2263953/View | Unit 02: Problem-Solving Styles - PD 6 Online - Fall 2018
+https://learn.uwaterloo.ca/d2l/home | Homepage - University of Waterloo
+http://hckrnews.com/ | hckr news - Hacker News sorted by time
+http://dtrace.org/blogs/bmc/2018/09/18/falling-in-love-with-rust/ | The Observation Deck » Falling in love with Rust
+https://en.wikipedia.org/wiki/Thread_(computing)#Models | Thread (computing) - Wikipedia
+http://dtrace.org/blogs/bmc/2008/11/03/concurrencys-shysters/ | The Observation Deck » Concurrency’s Shysters
+https://github.com/rust-lang/rfcs/blob/0806be4f282144cfcd55b1d20284b43f87cbe1c6/text/0230-remove-runtime.md | rfcs/0230-remove-runtime.md at 0806be4f282144cfcd55b1d20284b43f87cbe1c6 · rust-lang/rfcs
+https://mail.mozilla.org/pipermail/rust-dev/2013-December/007565.html | [rust-dev] Using libgreen/libnative
+https://mail.mozilla.org/pipermail/rust-dev/2013-November/006314.html | [rust-dev] Abandoning segmented stacks in Rust
+http://dtrace.org/blogs/ahl/2015/06/22/first-rust-program-pain/ | Adam Leventhal's blog » First Rust Program Pain (So you can avoid it…)
+https://en.wikipedia.org/wiki/The_Soul_of_a_New_Machine | The Soul of a New Machine - Wikipedia
+https://www.theguardian.com/environment/2018/sep/17/germany-launches-worlds-first-hydrogen-powered-train | Germany launches world's first hydrogen-powered train | Environment | The Guardian
+https://search-proquest-com.proxy.lib.uwaterloo.ca/publicationissue/5CEF8226B5744DF8PQ/$B/1/Wall+Street+Journal+$28Online$29$3b+New+York,+N.Y./02018Y09Y18$23Sep+18,+2018/$N?accountid=14906 | Browse Issue - ProQuest
+https://search-proquest-com.proxy.lib.uwaterloo.ca/docview/2108111739/5CEF8226B5744DF8PQ/32?accountid=14906 | Facebook and Financial Firms Tussled for Years Over Access to User Data; The social network's negotiating stance with institutions evolved - ProQuest
+https://search-proquest-com.proxy.lib.uwaterloo.ca/docview/2108417908/5CEF8226B5744DF8PQ/34?accountid=14906 | Ferrari Powers Through a Curve; The high-end car maker navigates a tricky transition with its high valuation intact, but faces challenges - ProQuest
+https://search-proquest-com.proxy.lib.uwaterloo.ca/docview/2108111092/5CEF8226B5744DF8PQ/41?accountid=14906 | German Car Makers Investigated Over 'Possible Collusion' on Emissions Technology; EU accuses BMW, Daimler and Volkswagen of limiting the development of technology that would reduce harmful exhaust emissions - ProQuest
+https://themuse.jezebel.com/the-marvelous-mrs-maisel-was-the-easy-choice-for-an-em-1829127149 | What Is Marvelous Mrs. Maisel and Why Did It Sweep the Emmys?
+https://www.cnn.com/2018/07/27/politics/donald-trump-economy-trade-gdp-growth-credit/index.html | The economy is doing well and Trump deserves some credit - CNNPolitics
+https://news.sky.com/story/a-list-of-everything-donald-trump-has-done-so-far-as-president-10750006 | A list of everything Donald Trump has done so far as President
+https://www.americanexperiment.org/2018/01/dennis-prager-wrong-trump-great-president/ | Dennis Prager: I was Wrong, Trump is a Great President - American Experiment
+https://www.vox.com/policy-and-politics/2018/8/24/17759940/donald-trump-economy-jobs-growth-obama | Donald Trump’s economy: the truth about jobs, wages, and deficits - Vox
+https://www.vox.com/2018/8/23/17706502/economy-wage-growth | When will wage growth happen? - Vox
+https://www.vox.com/policy-and-politics/2017/7/31/16021844/antitrust-better-deal | Democrats’ push for a new era of antitrust enforcement, explained - Vox
+https://www.thebalance.com/trump-vs-obama-economic-policies-4142333 | Trump vs Obama: Economic Policies
+https://intpolicydigest.org/2018/06/21/why-liberal-elites-hate-donald-trump/ | Why Liberal Elites Hate Donald Trump
+http://thehill.com/opinion/finance/377606-i-hate-trump-but-i-love-these-tariffs | I hate Trump, but I love these tariffs | TheHill
+https://wiki.archlinux.org/index.php/Spacemacs#Built-in_Tutorial | Spacemacs - ArchWiki
+https://github.com/syl20bnr/spacemacs/blob/master/doc/DOCUMENTATION.org#neotree-file-tree | spacemacs/DOCUMENTATION.org at master · syl20bnr/spacemacs
+https://medium.com/usevim/spacemacs-review-and-introduction-for-vim-users-cecb0df0fc5 | Spacemacs Review and Introduction for Vim Users – usevim – Medium
+https://jaketrent.com/post/projects-in-spacemacs/ | Projects in Spacemacs | Jake Trent
+https://github.com/syl20bnr/spacemacs/blob/master/doc/DOCUMENTATION.org | spacemacs/DOCUMENTATION.org at master · syl20bnr/spacemacs
+https://gist.github.com/adham90/0d85d023f9d4f1dd28ef | spacemacs keybindings that i need to learn
+https://www.reddit.com/r/spacemacs/comments/4h6h32/what_is_dired_and_how_do_i_use_it_in_spacemacs/ | What is Dired and how do I use it in spacemacs? : spacemacs
+https://leanprover.github.io/ | Lean
+https://aphyr.com/posts/342-typing-the-technical-interview | Typing the technical interview
+https://groups.google.com/forum/#!topic/lean-user/_e0WKvCPS24 | Excessive memory consumption - Google Groups
+http://opus.bath.ac.uk/48682/1/distance_accommodation_chi_pure_version.pdf | Correcting Distance Compression in Audiovisual Virtual Reality Environments
+http://drineas.org/Papers/Drineas_CACM_2016.pdf | Drineas_CACM_2016.pdf
+http://www.cs.huji.ac.il/~odedsc/papers/CA-Cholesky.pdf | p:\tex\sisc\32-6\76096\76096.dvi
+http://colah.github.io/ | Home - colah's blog
+http://www.cs.rug.nl/~alext/PAPERS/VAST16/paper.pdf | paper.pdf
+https://distill.pub/2017/research-debt/ | Research Debt
+https://mathoverflow.net/questions/43690/whats-a-mathematician-to-do | career - What's a mathematician to do? - MathOverflow
+https://ctan.org/pkg/fontawesome?lang=en | CTAN: Package fontawesome
+https://www.bloomberg.com/view/articles/2018-03-16/spotify-will-skip-a-lot-of-ipo-essentials?curator=MusicREDEF | Spotify Will Skip a Lot of IPO Essentials - Bloomberg
+http://marginalrevolution.com/marginalrevolution/2018/03/one-smart-guys-frank-take-working-major-tech-companies.html#more-73051 | One smart guy's frank take on working in some of the major tech companies - Marginal REVOLUTION
+http://armedforcesjournal.com/essay-dumb-dumb-bullets/ | Armed Forces Journal – Essay: Dumb-dumb bullets
+http://www.zdnet.com/article/death-by-powerpoint/ | Death by Powerpoint | ZDNet
