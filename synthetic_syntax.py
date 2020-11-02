@@ -271,6 +271,7 @@ df[(df.rel == 'EQUALS') & (df.engine == 'curie')].groupby(['fi', 'fj']).size()
 def load_df():
 	df = pd.read_csv(CSV_PATH)
 	df = df[keys_to_keep]
+	df = df.dropna(subset=['pred'])
 	return df
 
 def main(argv):

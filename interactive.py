@@ -29,17 +29,21 @@ keys = [
 	'presence_penalty',
 	'frequency_penalty',
 	'best_of',
+	'engine',
 ]
 
 def match_key(_key):
 	return sorted(keys, key=lambda x: -levenshtein(x, _key))[0]
 
 def run(gpt3):
-	kwargs = {}
+	kwargs = {
+		'engine': 'davinci',
+		'max_tokens': 15,
+	}
 	while True:
 		k = None
 		while k not in list('qrst'):
-			k = input('Command (q/r/s/t): ')
+			k = input('Command ([q]uit/[r]un/update [s]ettings/enter [t]ext): ')
 		if k == 's':
 			_key, value = input('Settings to update: ').split(' ')
 			if _key == 'del':
@@ -49,19 +53,24 @@ def run(gpt3):
 				else:
 					del kwargs[value]
 					print(f'Unset {value}')
-				continue
-			# vals = [levenshtein(x, _key) for x in keys]
-			# print(list(sorted(zip(keys, vals), key=lambda x: -x[1])))
-			key = match_key(_key)
-			try:
-				value = float(value)
-			except ValueError:
-				pass 
-			try:
-				kwargs[key] = value
-				print(f'Set {key} to {value}')
-			except Exception as e:
-				print(e)
+			else:
+				# vals = [levenshtein(x, _key) for x in keys]
+				# print(list(sorted(zip(keys, vals), key=lambda x: -x[1])))
+				key = match_key(_key)
+				try:
+					value = float(value)
+					if (value).is_integer():
+						value = int(value)
+				except ValueError:
+					pass 
+				try:
+					kwargs[key] = value
+					print(f'Set {key} to {value}')
+				except Exception as e:
+					print(e)
+			print('== Settings ==')
+			for key, value in kwargs.items():
+				print(f'{key}: {value}')
 		elif k == 't':
 			# s = input('Enter text:\n')
 			print('Enter text:')

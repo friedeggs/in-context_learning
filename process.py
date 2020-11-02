@@ -4,9 +4,11 @@ from Levenshtein import distance as levenshtein
 import numpy as np
 import os
 import random
+import signal
 import sys
 from typing import Any, Callable, Dict, List, Tuple, Optional
 from termcolor import colored
+import time
 from tqdm import tqdm
 
 # from naclo_problems import run_naclo_test_suite
@@ -68,6 +70,7 @@ def read_cache(filename: str = DEFAULT_CACHE_PATH):
 
 def write_cache(cache: Dict, filename: Optional[str] = None):
     filename = cache.get('__filename__') or filename or DEFAULT_CACHE_PATH
+    s = signal.signal(signal.SIGINT, signal.SIG_IGN)
     with open(filename, 'w') as f:
         for key, value in cache.items():
             _key = key if isinstance(key, str) else dict(key)
@@ -76,6 +79,7 @@ def write_cache(cache: Dict, filename: Optional[str] = None):
                 'response': value,
             }
             print(json.dumps(item), file=f)
+    signal.signal(signal.SIGINT, s)
     #print(f"Wrote {len(cache)} cache entries")
 
 def set_seed(seed: int = 0):
@@ -102,9 +106,17 @@ class GPT3:
             kwargs = dict(kwargs)
             if 'random' in kwargs:
                 del kwargs['random']
-            response = openai.Completion.create(**kwargs)
-            self.cache[key] = response
-            write_cache(self.cache)
+            try:
+                response = openai.Completion.create(**kwargs)
+                self.cache[key] = response
+                write_cache(self.cache)
+            except openai.error.InvalidRequestError as e:
+                print(e)
+                response = {
+                    'choices': [{
+                        'text': None
+                    }]
+                }
         return response
 
     def clear_staged_queries(self):
@@ -129,10 +141,10 @@ class GPT3:
                 # if cntr > 0 and cntr % 5 == 0:
                 #     print('%d staged requests left to skip' % cntr)
                 continue
-            print(key)
+            print(str(key))
             kwargs = dict(key)
             del kwargs['staged']
-            print(kwargs['prompt'])
+            print(kwargs['prompt'][-100:])
             if k == 'c':
                 k2 = 'x'
                 while k2[0] not in list('ynqs'):
@@ -155,28 +167,35 @@ class GPT3:
         response = self.make_query(**kwargs) 
         prompt = kwargs['prompt']
         del kwargs['prompt']
-        print(make_header(kwargs))
-        print(prompt, end='')
+        # print(make_header(kwargs))
+        # print(prompt, end='')
         if response is not None:
             for choice in response['choices']:
                 print(colored(choice['text'], RESPONSE_COLOR))
         print('')
 
-    def few_shot(self, examples: List[Tuple[str, str]], x: str, y: Optional[str] = None, prefix: Optional[str] = None, x_label: str = 'Input', y_label: str = 'Output', return_kwargs: bool = False, **kwargs):
+    def few_shot(self, examples: List[Tuple[str, str]], x: str, y: Optional[str] = None, prefix: Optional[str] = None, x_label: str = 'Input', y_label: str = 'Output', return_kwargs: bool = False, formatter = None, verbose=True, **kwargs):
         kwargs = {**self.default_generation_kwargs, **kwargs}
-        prompt = f'{x_label}: {x}\n{y_label}:'
-        if len(examples) > 0:
-            prompt = '\n'.join([f'{x_label}: {x}\n{y_label}: {y}' for x, y in examples]) + '\n' + prompt
+        if formatter is not None:
+            prompt = '\n'.join(map(formatter, examples + [(x, '')]))[:-1]
+        else:
+            prompt = f'{x_label}: {x}\n{y_label}:'
+            if len(examples) > 0:
+                prompt = '\n'.join([f'{x_label}: {x}\n{y_label}: {y}' for x, y in examples]) + '\n' + prompt
         if prefix is not None:
             prompt = prefix + '\n' + prompt
         kwargs['prompt'] = prompt
-        kwargs['stop'] = '\n'
+        if 'stop' not in kwargs:
+            kwargs['stop'] = '\n'
+        if kwargs['stop'] is None:
+            del kwargs['stop']
         response = self.make_query(**kwargs)
         #prompt = kwargs['prompt']
         #del kwargs['prompt']
-        print(make_header(kwargs))
+        # print(make_header(kwargs))
         # print(prompt, end='')
         rel = None
+        y = y.lstrip().rstrip()
         if response is not None:
             for choice in response['choices']:
                 predicted_y = choice['text'].lstrip().rstrip()
@@ -192,7 +211,8 @@ class GPT3:
                     extra = f' {rel} {y}'
                 else:
                     extra = ''
-                print(f'[{len(examples)} examples] {x} -> {colored(predicted_y, RESPONSE_COLOR)}{extra}')
+                if verbose:
+                    print(f'[{len(examples)} examples] {x} -> {colored(predicted_y, RESPONSE_COLOR)}{extra}')
         retval = [response, rel]
         if return_kwargs:
             retval.append(kwargs)
@@ -225,25 +245,31 @@ class MockGPT3:
         response = self.make_query(**kwargs) 
         prompt = kwargs['prompt']
         del kwargs['prompt']
-        print(make_header(kwargs))
-        print(prompt, end='')
+        # print(make_header(kwargs))
+        # print(prompt, end='')
         for choice in response['choices']:
             print(colored(choice['text'], RESPONSE_COLOR))
         print('')
 
-    def few_shot(self, examples: List[Tuple[str, str]], x: str, y: Optional[str] = None, prefix: Optional[str] = None, x_label: str = 'Input', y_label: str = 'Output', return_kwargs: bool = False, **kwargs):
+    def few_shot(self, examples: List[Tuple[str, str]], x: str, y: Optional[str] = None, prefix: Optional[str] = None, x_label: str = 'Input', y_label: str = 'Output', return_kwargs: bool = False, formatter = None, stop: List[str] = ['\n'], verbose=True, **kwargs):
         kwargs = {**self.default_generation_kwargs, **kwargs}
-        prompt = f'{x_label}: {x}\n{y_label}:'
-        if len(examples) > 0:
-            prompt = '\n'.join([f'{x_label}: {x}\n{y_label}: {y}' for x, y in examples]) + '\n' + prompt
+        if formatter is not None:
+            prompt = '\n'.join(map(formatter, examples + [(x, '')]))[:-1]
+        else:
+            prompt = f'{x_label}: {x}\n{y_label}:'
+            if len(examples) > 0:
+                prompt = '\n'.join([f'{x_label}: {x}\n{y_label}: {y}' for x, y in examples]) + '\n' + prompt
         if prefix is not None:
             prompt = prefix + '\n' + prompt
         if y is not None:
             prompt += ' ' + colored(y, 'yellow')
         kwargs['prompt'] = prompt
-        kwargs['stop'] = '\n'
+        if 'stop' not in kwargs:
+            kwargs['stop'] = '\n'
+        if kwargs['stop'] is None:
+            del kwargs['stop']
         response = self.make_query(**kwargs)
-        print(prompt)
+        # print(prompt)
         retval = [response, None]
         if return_kwargs:
             retval.append(kwargs)
@@ -271,10 +297,10 @@ class MockGPT3:
                 # if cntr > 0 and cntr % 5 == 0:
                 #     print('%d staged requests left to skip' % cntr)
                 continue
-            print(key)
+            print(str(key))
             kwargs = dict(key)
             del kwargs['staged']
-            print(kwargs['prompt'])
+            print(kwargs['prompt'][-100:])
             if k == 'c':
                 k2 = 'x'
                 while k2[0] not in list('ynqs'):
