@@ -17,15 +17,20 @@ syntax_grammar = """
 	?list: "[" (transform ", ")* reduce (", " apply_one)*  "]" -> eval_apply_list
 	?transform: map
 		| reverse
+		| null
+		| id
 	?map: "MAP(" apply_one ")" -> eval_map
 		| "LIST(" reduce ")" -> eval_make_list
 	?apply_one: id
 		| paren
+		| substr
 	?reverse: "REVERSE" -> eval_reverse
 	?split: "SPLIT(" numliteral ", " transform ", " transform ", " reduce ")" -> eval_split
 	?join: "JOIN(" literal ")" -> eval_join
 	?id: "ID" -> eval_identity
 	?paren: "PAREN(" literal ", " literal  ")" -> eval_paren
+	?substr: "SUBSTR(" numliteral ", " numliteral  ")" -> eval_substr
+	?null: "NULL" -> eval_null
 
 	?literal: list
 		| STRING												-> eval_literal
@@ -58,6 +63,9 @@ class FormatData(Transformer):
 	def eval_paren(self, tree):
 		return lambda x: str(tree.children[0]) + str(x) + str(tree.children[1])
 
+	def eval_substr(self, tree):
+		return lambda x: str(x)[tree.children[0]:tree.children[1]]
+
 	def eval_map(self, tree):
 		return lambda x: list(map(tree.children[0], x))
 
@@ -76,6 +84,9 @@ class FormatData(Transformer):
 
 	def eval_reverse(self, tree):
 		return lambda x: x[::-1]
+
+	def eval_null(self, tree):
+		return lambda x: []
 
 	def eval_split(self, tree):
 		idx = tree.children[0]
@@ -141,6 +152,7 @@ def run(s, data):
 	# print()
 
 if __name__ == '__main__':
+# To escape ": use two slashes, \\"
 	run('SPLIT(1, MAP(PAREN("(", ")")), LIST(JOIN("-")), JOIN(" "))', list('abcde'))
 	run('JOIN(" ")', list('abcde'))
 	run('JOIN("::")', list('abcde'))
@@ -148,4 +160,9 @@ if __name__ == '__main__':
 	run('[JOIN("::"), PAREN("(", ")")]', list('abcde'))
 	run('[MAP(PAREN("(", ")")), JOIN("::")]', list('abcde'))
 	run('[REVERSE, JOIN("::")]', list('abcde'))
+	run('[SPLIT(2, REVERSE, REVERSE, JOIN(", "))]', list('abcde'))
+	run('[JOIN(""), SUBSTR(1, 4)]', list('abcde'))
 
+	# run('[REVERSE, SPLIT(2, REVERSE, MAP(PAREN("a", "")), JOIN(" "))]', [1997, '03', 28])
+	# run('SPLIT(1, MAP(SUBSTR(2, 4)), ID, [REVERSE, JOIN("-")])', [1997, '03', 28])
+	# run('SPLIT(1, MAP(SUBSTR(2, 4)), ID, JOIN("-"))', [1997, '03', 28])
