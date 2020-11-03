@@ -141,10 +141,11 @@ class GPT3:
                 # if cntr > 0 and cntr % 5 == 0:
                 #     print('%d staged requests left to skip' % cntr)
                 continue
-            print(str(key))
+            _key = [el for el in key if el[0] != 'prompt']
+            print(str(_key))
             kwargs = dict(key)
             del kwargs['staged']
-            print(kwargs['prompt'][-100:])
+            print(kwargs['prompt'][-200:])
             if k == 'c':
                 k2 = 'x'
                 while k2[0] not in list('ynqs'):
@@ -297,10 +298,11 @@ class MockGPT3:
                 # if cntr > 0 and cntr % 5 == 0:
                 #     print('%d staged requests left to skip' % cntr)
                 continue
-            print(str(key))
+            _key = [el for el in key if el[0] != 'prompt']
+            print(str(_key))
             kwargs = dict(key)
             del kwargs['staged']
-            print(kwargs['prompt'][-100:])
+            print(kwargs['prompt'][-200:])
             if k == 'c':
                 k2 = 'x'
                 while k2[0] not in list('ynqs'):

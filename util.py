@@ -21,6 +21,17 @@ def load_file(filename):
 		with open(filename) as f:
 			lines = list(map(str.rstrip, f.readlines()))
 			return lines
+	if filename.endswith('.json'):
+		return json.loads(filename)
+	raise Exception(f'File name {filename} ends with unrecognized extension.')
+
+def save_file(filename, obj):
+	if filename.endswith('.txt'):
+		with open(filename, 'w') as f:
+			for line in obj:
+				f.write(line + '\n')
+	elif filename.endswith('.json'):
+		return json.dump(obj, filename)
 	raise Exception(f'File name {filename} ends with unrecognized extension.')
 
 def insert_random_spaces(s, p=[.8,.15,.05]):
@@ -33,3 +44,10 @@ def escape_ansi(line): # Source: https://stackoverflow.com/a/38662876
 		return line
 	ansi_escape = re.compile(r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]')
 	return ansi_escape.sub('', line)
+
+def repeat(lst, n):
+	"""
+	>>> repeat(list('abc'), 2)
+	['a', 'a', 'b', 'b', 'c', 'c']
+	"""
+	return [x for x in lst for _ in range(n)]
