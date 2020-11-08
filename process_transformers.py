@@ -214,6 +214,7 @@ class Runner():
         if hasattr(self, '_model'):
             return self._model
         self._model = AutoModelForCausalLM.from_pretrained(self.model_name, pad_token_id=self.tokenizer.eos_token_id).to(device)  # add the EOS token as PAD token to avoid warnings
+        return self._model
 
     def complete(self, prompt: str, temperature: float = 0., random: int = 0, max_tokens: int = 50, generation_kwargs: Optional[Dict] = None, **kwargs):
         set_seed(random)

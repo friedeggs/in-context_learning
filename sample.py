@@ -96,9 +96,12 @@ def create_date_schema():
 	date_forms = OrderedDict({
 		0: Form(lambda _: f'{_.year}-{_.month:02d}-{_.day:02d}', 0),
 		1: Form(lambda _: f'{_.month:02d}/{_.day:02d}/{_.year}', 0),
-		2: Form(lambda _: f'{_.month} {_.day} {_.year}', 1),
-		3: Form(lambda _: '{' + f'"month": {_.month}, "day": {_.day}, "year": {_.year}' + '}', 1),
-		4: Form(lambda _: f'!{_.month}!{_.day}!{_.year}!', 2),
+		# 2: Form(lambda _: f'{_.month} {_.day} {_.year}', 1),
+		# 3: Form(lambda _: '{' + f'"month": {_.month}, "day": {_.day}, "year": {_.year}' + '}', 1),
+		# 4: Form(lambda _: f'!{_.month}!{_.day}!{_.year}!', 2),
+		2: Form(lambda _: f'{_.month:02d} {_.day:02d} {_.year}', 1),
+		3: Form(lambda _: '{' + f'"month": {_.month:02d}, "day": {_.day:02d}, "year": {_.year}' + '}', 1),
+		4: Form(lambda _: f'!{_.month:02d}!{_.day:02d}!{_.year}!', 2),
 	})
 	forms = {
 		'src_form': date_forms,
@@ -275,7 +278,7 @@ def run_schema_task(gpt3, engine, schema_type, **kwargs):
 	print(sample(schema_type, 0, 1, schema_type(*([0] * len(schema_type._fields)))))
 
 	n_train = 3
-	n_test = 5
+	n_test = 10 # 5
 
 	poss_fc = list(cartesian_product(
 		exactly_k_unnatural(schema_type, 'forms'), 
@@ -332,7 +335,7 @@ def save_df(rows):
 	df.to_csv(CSV_PATH)
 
 """
-from sample import load_df, print_stats
+from sample import load_df, get_latex_stats
 df = load_df(); len(df)
 df[(df.rel != 'EQUALS') & (df.num_examples == 3)]
 df[(df.src_form_un > 0) & !(df.tgt_form_un > 0)]
@@ -344,16 +347,272 @@ def load_df(csv_path=CSV_PATH):
 	return df
 
 """
-from sample import load_df, print_stats
+from sample import load_df, get_latex_stats, get_latex_plot_code, generate_latex_plots
 df = load_df(); len(df)
-condition = (df.num_examples == 3) & ~((df.src_form_un == 0) & (df.tgt_form_un == 0)) & (df.content_un == 0)
-condition = (df.num_examples == 3) & ((df.src_form_un == 0) & (df.tgt_form_un == 0)) & ~(df.content_un == 0)
-
-for schema_type in ['DateSchema', 'NameSchema', 'UrlSchema']:
-	condition = (df.num_examples == 3) & ~((df.src_form_un == 0) & (df.tgt_form_un == 0)) & (df.content_un == 0) & (df.schema_type == schema_type)
-	print(print_stats(df, condition))
+df = df[df.num_examples == 3]
+generate_latex_plots(df)
 """
-def print_stats(df, condition):
+def generate_latex_plots(df):
+	plot_data = [
+		(
+			'Natural content; Natural form',
+			(df.src_form_un == 0) & (df.tgt_form_un == 0) & (df.content_un == 0),
+			"""
+	color=gray,
+	mark=square,
+""",
+		),
+		(
+			'Unnatural content; Natural form',
+			(df.src_form_un == 0) & (df.tgt_form_un == 0) & ~(df.content_un == 0),
+			"""
+	color=red,
+	mark=square,
+""",
+		),
+		(
+			'Natural content; Unnatural form',
+			~((df.src_form_un == 0) & (df.tgt_form_un == 0)) & (df.content_un == 0),
+			"""
+	color=orange,
+	mark=square,
+""",
+		),
+		(
+			'Unnatural source form',
+			~(df.src_form_un == 0) & (df.tgt_form_un == 0) & (df.content_un == 0),
+			"""
+	color=yellow,
+	mark=square,
+""",
+		),
+		(
+			'Unnatural target form',
+			(df.src_form_un == 0) & ~(df.tgt_form_un == 0) & (df.content_un == 0),
+			"""
+	color=green,
+	mark=square,
+""",
+		),
+		(
+			'Form to/from JSON',
+			~((df.src_form != 2) & (df.tgt_form != 2)) & (df.content_un == 0),
+			"""
+	color=blue,
+	mark=square,
+""",
+		),
+		(
+			'Form to/from ``!\'\'',
+			~((df.src_form != 3) & (df.tgt_form != 3)) & (df.content_un == 0),
+			"""
+	color=violet,
+	mark=square,
+""",
+		),
+	]
+	util.write_to_file(
+		'figs/plot.tex', 
+		get_latex_plot_code(df, 'Sensitivity to Content and Form Across Models -- Overview', plot_data) + "\n"
+	)
+
+	plot_data = [
+		(
+			'Natural content; Unnatural form; NameSchema',
+			~((df.src_form_un == 0) & (df.tgt_form_un == 0)) & (df.content_un == 0) & (df.schema_type == 'NameSchema'),
+			"""
+	color=orange,
+	mark=square,
+""",
+		),
+		(
+			'Natural content; Unnatural form; DateSchema',
+			~((df.src_form_un == 0) & (df.tgt_form_un == 0)) & (df.content_un == 0) & (df.schema_type == 'DateSchema'),
+			"""
+	color=green,
+	mark=square,
+""",
+		),
+		(
+			'Natural content; Unnatural form; UrlSchema',
+			~((df.src_form_un == 0) & (df.tgt_form_un == 0)) & (df.content_un == 0) & (df.schema_type == 'UrlSchema'),
+			"""
+	color=cyan,
+	mark=square,
+""",
+		),
+	]
+	util.write_to_file(
+		'figs/plot_schemas.tex', 
+		get_latex_plot_code(df, 'Sensitivity to Unnatural Form Across Models and Schema Types', plot_data) + "\n"
+	)
+
+	plot_data = [
+		(
+			'Form to/from natural; NameSchema',
+			((df.src_form < 2) & (df.tgt_form < 2)) & (df.content_un == 0) & (df.schema_type == 'NameSchema'),
+			"""
+	color=red,
+	mark=square,
+""",
+		),
+		(
+			'Form to/from JSON; NameSchema',
+			~((df.src_form != 2) & (df.tgt_form != 2)) & (df.content_un == 0) & (df.schema_type == 'NameSchema'),
+			"""
+	color=teal,
+	mark=square,
+""",
+		),
+		(
+			'Form to/from ``!\'\'; NameSchema',
+			~((df.src_form != 3) & (df.tgt_form != 3)) & (df.content_un == 0) & (df.schema_type == 'NameSchema'),
+			"""
+	color=blue,
+	mark=square,
+""",
+		),
+	]
+	util.write_to_file(
+		'figs/plot_names.tex', 
+		get_latex_plot_code(df, 'Sensitivity to Form Across Models; NameSchema', plot_data) + "\n"
+	)
+
+	plot_data = [
+		(
+			'Form to/from natural; DateSchema',
+			((df.src_form < 2) & (df.tgt_form < 2)) & (df.content_un == 0) & (df.schema_type == 'DateSchema'),
+			"""
+	color=red,
+	mark=square,
+""",
+		),
+		(
+			'Form to/from JSON; DateSchema',
+			~((df.src_form != 2) & (df.tgt_form != 2)) & (df.content_un == 0) & (df.schema_type == 'DateSchema'),
+			"""
+	color=teal,
+	mark=square,
+""",
+		),
+		(
+			'Form to/from ``!\'\'; DateSchema',
+			~((df.src_form != 3) & (df.tgt_form != 3)) & (df.content_un == 0) & (df.schema_type == 'DateSchema'),
+			"""
+	color=blue,
+	mark=square,
+""",
+		),
+	]
+	util.write_to_file(
+		'figs/plot_dates.tex', 
+		get_latex_plot_code(df, 'Sensitivity to Form Across Models; DateSchema', plot_data) + "\n"
+	)
+
+	plot_data = [
+		(
+			'Form to/from natural; UrlSchema',
+			((df.src_form < 2) & (df.tgt_form < 2)) & (df.content_un == 0) & (df.schema_type == 'UrlSchema'),
+			"""
+	color=red,
+	mark=square,
+""",
+		),
+		(
+			'Form to/from JSON; UrlSchema',
+			~((df.src_form != 2) & (df.tgt_form != 2)) & (df.content_un == 0) & (df.schema_type == 'UrlSchema'),
+			"""
+	color=teal,
+	mark=square,
+""",
+		),
+		(
+			'Form to/from ``!\'\'; UrlSchema',
+			~((df.src_form != 3) & (df.tgt_form != 3)) & (df.content_un == 0) & (df.schema_type == 'UrlSchema'),
+			"""
+	color=blue,
+	mark=square,
+""",
+		),
+	]
+	util.write_to_file(
+		'figs/plot_urls.tex', 
+		get_latex_plot_code(df, 'Sensitivity to Form Across Models; UrlSchema', plot_data) + "\n"
+	)
+
+	plot_data = [
+		(
+			'Form to/from natural',
+			((df.src_form < 2) & (df.tgt_form < 2)) & (df.content_un == 0),
+			"""
+	color=red,
+	mark=square,
+""",
+		),
+		(
+			'Form to/from JSON',
+			~((df.src_form != 2) & (df.tgt_form != 2)) & (df.content_un == 0),
+			"""
+	color=teal,
+	mark=square,
+""",
+		),
+		(
+			'Form to/from ``!\'\'',
+			~((df.src_form != 3) & (df.tgt_form != 3)) & (df.content_un == 0),
+			"""
+	color=blue,
+	mark=square,
+""",
+		),
+	]
+	util.write_to_file(
+		'figs/plot_forms.tex', 
+		get_latex_plot_code(df, 'Sensitivity to Form Across Models', plot_data) + "\n"
+	)
+
+def get_latex_plot_code(df, plot_title, plot_data):
+	latex_code = """
+\\begin{tikzpicture}
+\\begin{axis}[
+	title={%s},""".lstrip() % plot_title \
+	+ """
+	xlabel={Number of parameters},
+	ylabel={Accuracy (\\%)},
+	xmin=0, xmax=200000000000,
+	ymin=0, ymax=100,
+	legend pos=outer north east, %north west,
+	ymajorgrids=true,
+	grid style=dashed,
+	xmode=log,
+	legend cell align={left},
+	every axis plot/.append style={thick}
+]
+"""
+	line_names = []
+	for line_name, condition, options in plot_data:
+		stats = get_latex_stats(df, condition)
+		latex_code += """
+\\addplot[%s]
+	coordinates {
+	%s
+	};
+""" % (options, stats)
+		line_names.append(line_name)
+
+	latex_code += """
+\\legend{
+	%s
+}
+""" % (',%\n\t'.join(line_names + ['']).rstrip())
+	
+	latex_code += """
+\\end{axis}
+\\end{tikzpicture}
+"""
+	return latex_code
+
+def get_latex_stats(df, condition):
 	"""
 	condition = (df.num_examples == 3) & ~((df.src_form_un == 0) & (df.tgt_form_un == 0))
 	condition = (~(df.src_form_un == 0) & (df.tgt_form_un == 0)) | ((df.src_form_un == 0) & ~(df.tgt_form_un == 0))
@@ -374,7 +633,7 @@ def print_stats(df, condition):
 			'davinci'
 		]:
 		num_params = model_info[model_name]['num_parameters']
-		data += [(num_params, 100. * scores.get(model_name, 0.))]
+		data += [(num_params, 100. * np.nan_to_num(scores.get(model_name, 0.)))]
 	return str(data).replace('), (', ')(')[1:-1]
 	# return data
 
@@ -403,14 +662,14 @@ def main(argv):
 	save_df(rows)
 
 	default_generation_kwargs = {
-	    'do_sample': True, 
-	    # 'max_length': 15, 
-	    'top_k': 0, 
-	    # 'top_p': 0.95, 
-	    'temperature': 0.0001, 
-	    # 'num_return_sequences': 5, 
-	    'num_return_sequences': 1, 
-	    'stop': '\n',
+		'do_sample': True, 
+		# 'max_length': 15, 
+		'top_k': 0, 
+		# 'top_p': 0.95, 
+		'temperature': 0.0001, 
+		# 'num_return_sequences': 5, 
+		'num_return_sequences': 1, 
+		'stop': '\n',
 	}
 	for model_name in [
 		'gpt2-xl',
@@ -440,6 +699,10 @@ def main(argv):
 		run_schema_task(gpt, model_name, url_schema, max_tokens=150, temperature=default_generation_kwargs['temperature'])
 		# gpt.model.num_parameters()
 	save_df(rows)
+	df = load_df(); print(len(df))
+	df = df[df.num_examples == 3]
+	generate_latex_plots(df)
+	print('Wrote LaTeX plots')
 
 if __name__ == '__main__':
 	main(sys.argv)

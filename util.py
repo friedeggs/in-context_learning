@@ -16,6 +16,10 @@ def set_seed(seed: int = 0):
 	# tf.random.set_seed(seed)
 	# torch.manual_seed(seed)
 
+def write_to_file(filename, s):
+	with open(filename, 'w') as f:
+		f.write(s)
+
 def load_file(filename):
 	if filename.endswith('.txt'):
 		with open(filename) as f:
