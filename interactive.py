@@ -45,7 +45,13 @@ def run(gpt3):
 		while k not in list('qrst'):
 			k = input('Command ([q]uit/[r]un/update [s]ettings/enter [t]ext): ')
 		if k == 's':
-			_key, value = input('Settings to update: ').split(' ')
+			try:
+				kv = input('Settings to update: ').split(' ')
+				_key = kv[0]
+				value = ' '.join(kv[1:])
+			except Exception as e:
+				print('ERROR: %s' % e)
+				continue
 			if _key == 'del':
 				value = match_key(value)
 				if value not in kwargs:
@@ -57,17 +63,23 @@ def run(gpt3):
 				# vals = [levenshtein(x, _key) for x in keys]
 				# print(list(sorted(zip(keys, vals), key=lambda x: -x[1])))
 				key = match_key(_key)
+				if key == 'stop':
+					try:
+						value = eval(value)
+					except Exception as e:
+						print('ERROR: %s' % e)
+						continue
 				try:
 					value = float(value)
 					if (value).is_integer():
 						value = int(value)
-				except ValueError:
+				except (TypeError, ValueError):
 					pass 
 				try:
 					kwargs[key] = value
 					print(f'Set {key} to {value}')
 				except Exception as e:
-					print(e)
+					print('ERROR: %s' % e)
 			print('== Settings ==')
 			for key, value in kwargs.items():
 				print(f'{key}: {value}')
