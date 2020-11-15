@@ -1,7 +1,9 @@
 import sys, os 
+import copy
 from collections import OrderedDict, namedtuple
 from itertools import product as cartesian_product
 # import exrex
+import json
 import numpy as np
 import pandas as pd
 import random
@@ -46,6 +48,7 @@ keys_for_comparison = [
 	# 'rel',
 	'x',
 	'y',
+	# 'test_idx',
 ]
 keys_to_keep = [
 	'engine',
@@ -72,6 +75,7 @@ keys_to_keep = [
 	'schema_type',
 	'test_idx',
 ]
+data = []
 
 def create_date_schema():
 	contents = {
@@ -80,16 +84,19 @@ def create_date_schema():
 				0: Content(lambda: np.random.randint(1970, 2020), 0),
 				1: Content(lambda: np.random.randint(2030, 2040), 1),
 				2: Content(lambda: np.random.randint(1, 10_000), 2),
+				# 3: Content(lambda: np.random.randint(2050, 1_000_000), 2),
 			}),
 		'month': 
 			OrderedDict({
 				0: Content(lambda: np.random.randint(1, 12+1), 0),
 				1: Content(lambda: np.random.randint(40, 1000), 1),
+				# 3: Content(lambda: np.random.randint(50, 1_000_000), 1),
 			}),
 		'day': 
 			OrderedDict({
 				0: Content(lambda: np.random.randint(1, 28+1), 0),
 				1: Content(lambda: np.random.randint(40, 1000), 1),
+				# 3: Content(lambda: np.random.randint(50, 1_000_000), 1),
 			}),
 	}
 
@@ -234,7 +241,7 @@ def print_samples(samples):
 		print(f'{_.src_form} \t-> \t{_.tgt_form}')
 
 def evaluate(gpt3, train_samples, test_samples, additional_kwargs={}, **kwargs):
-	global rows
+	global rows, data
 	train_examples = [(_.src_form, _.tgt_form) for _ in train_samples]
 	test_examples = [(_.src_form, _.tgt_form) for _ in test_samples]
 	for idx, (x, y) in enumerate(test_examples):
@@ -246,7 +253,17 @@ def evaluate(gpt3, train_samples, test_samples, additional_kwargs={}, **kwargs):
 		rel = util.escape_ansi(rel)
 		try:
 			pred = response['choices'][0]['text'].lstrip().rstrip()
-		except Exception:
+			if 'logprobs' in kwargs and kwargs['logprobs'] is not None:
+				print(colored('|', 'yellow').join(response['choices'][0]['logprobs']['tokens']))
+				arr = response['choices'][0]['logprobs']['top_logprobs']
+				cur_data = []
+				for obj in arr:
+					obj = OrderedDict(sorted(obj.items(), key=lambda x: -x[1]))
+					print(json.dumps(obj, indent=4)) # , sort_keys=True))
+					cur_data.append(list(obj.items()))
+				data.append(cur_data)
+		except Exception as e:
+			# print(e)
 			try:
 				pred = response[0]
 			except Exception:
@@ -319,6 +336,133 @@ def run_schema_task(gpt3, engine, schema_type, **kwargs):
 		}
 		evaluate(gpt3, sm[:n_train], sm[n_train:], additional_kwargs=additional_kwargs, **kwargs)
 
+def run_date_investigation(gpt3, engine, schema_type, **kwargs):
+	default_kwargs = {
+		'temperature': 0, 
+		'prefix': None, 
+		'engine': engine, 
+		'max_tokens': 20, 
+		'staged': True, 
+		'return_kwargs': True,
+		'stop': '\n',
+		'verbose': False,
+	}
+	kwargs = {**default_kwargs, **kwargs}
+
+	set_seed(0)
+	print(sample(schema_type, 0, 1, schema_type(*([0] * len(schema_type._fields)))))
+
+	n_train = 3
+	n_test = 100 # 5
+
+	# poss_fc = list(cartesian_product(
+	# 	exactly_k_unnatural(schema_type, 'forms'), 
+	# 	exactly_k_unnatural(schema_type, 'contents', 0))) \
+	# 	+ list(cartesian_product(
+	# 	exactly_k_unnatural(schema_type, 'forms', 0), 
+	# 	exactly_k_unnatural(schema_type, 'contents'))) \
+	# 	+ list(cartesian_product(
+	# 	exactly_k_unnatural(schema_type, 'forms', 0), 
+	# 	exactly_k_unnatural(schema_type, 'contents', 0)))
+	# poss_fc = [(exactly_k_unnatural(schema_type, 'forms', 2)[0], exactly_k_unnatural(schema_type, 'contents', len(schema_type._fields))[0])]
+	# poss_fc = [(FormPair(0, 4), schema_type(*([0] * len(schema_type._fields))))]
+	poss_fc = [
+		(FormPair(0, 4), schema_type(*([0] * len(schema_type._fields))))
+	]
+	print(poss_fc[0])
+
+	# df = load_df()
+	# df = df[(df.rel != 'EQUALS') & (df.num_examples == 5)]
+	# poss_f = [FormPair(x, y) for x, y in list(df[['src_form', 'tgt_form']].values)]
+	# poss_c = list(map(eval, df['content'].values))
+	# poss_fc = list(zip(poss_f, poss_c))
+	print('Number of possible form and content combinations to process: %d' % len(poss_fc))
+
+	s = schema_type
+	samples = [[sample(schema_type, pf.src_form, pf.tgt_form, pc, seed) for seed in range(n_train + n_test)] \
+		for pf, pc in poss_fc]
+	print(samples[0][0]) # Sample(content=DateSchema(year=2014, month=6, day=1), src_form='2014-06-01', tgt_form='!06!01!2014!')
+	for poss_idx, (pf, pc) in enumerate(poss_fc):
+		for idx in [1,14,18,59,71,72,77,85,91,93]: # 10 # 3 x 5 x 10 = 150 47/150
+			sm = copy.deepcopy(samples[poss_idx][n_train + idx])
+			c = sm.content
+			for i in range(5):
+				modified = s(
+					day=np.random.randint(1,28+1),
+					month=np.random.randint(1,12+1),
+					year=np.random.randint(1970,2020),
+				)
+				sfi = pf.src_form
+				tfi = pf.tgt_form
+
+				content = s(year=c.year,month=c.month,day=modified.day)
+				src_form = s.forms['src_form'][sfi].function(content)
+				tgt_form = s.forms['tgt_form'][tfi].function(content)
+				samples[poss_idx].append(Sample(content, src_form, tgt_form))
+
+				content = s(year=c.year,month=modified.month,day=c.day)
+				src_form = s.forms['src_form'][sfi].function(content)
+				tgt_form = s.forms['tgt_form'][tfi].function(content)
+				samples[poss_idx].append(Sample(content, src_form, tgt_form))
+
+				content = s(year=modified.year,month=c.month,day=c.day)
+				src_form = s.forms['src_form'][sfi].function(content)
+				tgt_form = s.forms['tgt_form'][tfi].function(content)
+				samples[poss_idx].append(Sample(content, src_form, tgt_form))
+
+	for poss_idx, (pf, pc) in enumerate(poss_fc):
+		# 234  2016-08-16  !08!16!2016!  !16!08!2016!         9
+		# 294  2018-01-18  !01!18!2018!  !18!01!2018!        76
+		# 297  2018-05-18  !05!18!2018!  !18!05!2018!        79
+		for idx in [9,76,79]: # 3 # 3 x 5 x 3 = 45 11/45
+			sm = copy.deepcopy(samples[poss_idx][n_train + idx + 100])
+			c = sm.content
+			for i in range(5):
+				modified = s(
+					day=np.random.randint(1,28+1),
+					month=np.random.randint(1,12+1),
+					year=np.random.randint(1970,2020),
+				)
+				sfi = pf.src_form
+				tfi = pf.tgt_form
+
+				content = s(year=c.year,month=c.month,day=modified.day)
+				src_form = s.forms['src_form'][sfi].function(content)
+				tgt_form = s.forms['tgt_form'][tfi].function(content)
+				samples[poss_idx].append(Sample(content, src_form, tgt_form))
+
+				content = s(year=c.year,month=modified.month,day=c.day)
+				src_form = s.forms['src_form'][sfi].function(content)
+				tgt_form = s.forms['tgt_form'][tfi].function(content)
+				samples[poss_idx].append(Sample(content, src_form, tgt_form))
+
+				content = s(year=modified.year,month=c.month,day=c.day)
+				src_form = s.forms['src_form'][sfi].function(content)
+				tgt_form = s.forms['tgt_form'][tfi].function(content)
+				samples[poss_idx].append(Sample(content, src_form, tgt_form))
+
+	for sm, (pf, pc) in zip(samples, poss_fc):
+		# print_samples(sm)
+		# print()
+		content_un = False
+		for field in s._fields:
+			if s.contents[field][getattr(pc, field)].unnaturalness > 0:
+				content_un = True
+		additional_kwargs = {
+			'src_form': pf.src_form,
+			'tgt_form': pf.tgt_form,
+			'content': pc,
+			'src_form_un': s.forms['src_form'][pf.src_form].unnaturalness,
+			'tgt_form_un': s.forms['tgt_form'][pf.tgt_form].unnaturalness,
+			'content_un': content_un, # s.contents[pc].unnaturalness,
+			'seed': 0,
+			'schema_type': schema_type.__name__
+		}
+		# evaluate(gpt3, sm[:n_train], sm[n_train:], additional_kwargs=additional_kwargs, **kwargs)
+		# evaluate(gpt3, sm[:n_train] + [sm[n_train], sm[n_train+2]], sm[-150:], additional_kwargs=additional_kwargs, **kwargs)
+		evaluate(gpt3, sm[:n_train] + [sm[n_train], sm[n_train+2]], sm[-45:], additional_kwargs=additional_kwargs, **kwargs)
+
+
 def save_df(rows):
 	# print(rows)
 	df = pd.DataFrame(rows) # , columns=column_names)
@@ -351,6 +495,21 @@ from sample import load_df, get_latex_stats, get_latex_plot_code, generate_latex
 df = load_df(); len(df)
 df = df[df.num_examples == 3]
 generate_latex_plots(df)
+
+from sample import load_df, get_latex_stats, get_latex_plot_code, generate_latex_plots
+df = load_df(); len(df)
+df = df[(df.engine == 'davinci') & (df.num_examples == 3)]
+df = df[(df.src_form == 0) & (df.tgt_form == 4)]
+df[(df.rel != 'EQUALS')][['x','y','pred','test_idx']]
+((df[(df.rel != 'EQUALS')][['x','y','pred','test_idx']].test_idx) % 3).value_counts()
+df[(df.rel != 'EQUALS')][['x','y','pred','test_idx']].test_idx.values
+
+from sample import load_df, get_latex_stats, get_latex_plot_code, generate_latex_plots
+df = load_df(); len(df)
+df = df[(df.engine == 'davinci') & (df.num_examples == 5)]
+df = df[(df.src_form == 0) & (df.tgt_form == 4)]
+df[(df.rel != 'EQUALS')][['x','y','pred','test_idx']]
+((df[(df.rel != 'EQUALS')][['x','y','pred','test_idx']].test_idx) % 3).value_counts()
 """
 def generate_latex_plots(df):
 	plot_data = [
@@ -704,8 +863,93 @@ def main(argv):
 	generate_latex_plots(df)
 	print('Wrote LaTeX plots')
 
-if __name__ == '__main__':
-	main(sys.argv)
+def main2(argv):
+	GPT = GPT3 if 'submit' in argv else MockGPT3
+	print('Using ' + GPT.__name__)
 
+	cache_fname = f'cache_{GPT.__name__}.jsonl'
+	cache = read_cache(cache_fname)
+	gpt3 = GPT(cache)
+	gpt3.clear_staged_queries()
+
+	date_schema = create_date_schema()
+
+	engines = ['ada', 'babbage', 'curie', 'davinci']
+	for engine in engines:
+		kwargs = {}
+		default_kwargs = {
+			'temperature': 0, 
+			'prefix': None, 
+			'engine': engine, 
+			'max_tokens': 20, 
+			'staged': True, 
+			'return_kwargs': True,
+			'stop': '\n',
+			'verbose': False,
+			'logprobs': 25,
+		}
+		kwargs = {**default_kwargs, **kwargs}
+		schema_type = date_schema
+		# set_seed(0)
+		# print(sample(schema_type, 0, 4, schema_type(*([0] * len(schema_type._fields)))))
+
+		n_train = 3
+		n_test = 1
+		s = schema_type
+		samples = [[sample(schema_type, 0, 4, schema_type(*([0] * len(schema_type._fields))), seed) for seed in range(n_train + n_test)] \
+			for _ in range(1)]
+		for sm in samples:
+			print_samples(sm)
+			evaluate(gpt3, sm[:n_train], sm[n_train:], additional_kwargs={}, **kwargs)
+	gpt3.run_staged_queries()
+
+	for engine, cur_data in zip(engines, data):
+		print('Engine: %s' % engine)
+		for items in zip(*cur_data):
+			print('\t '.join(list(map(lambda x: x[0].replace("\n","nl").replace("<|endoftext|>","<eot>").ljust(5) + ': ' + f'{x[1]:.2f}'.ljust(8), items))))
+
+def main3(argv):
+	GPT = GPT3 if 'submit' in argv else MockGPT3
+	print('Using ' + GPT.__name__)
+
+	cache_fname = f'cache_{GPT.__name__}.jsonl'
+	cache = read_cache(cache_fname)
+	gpt3 = GPT(cache)
+	gpt3.clear_staged_queries()
+
+	date_schema = create_date_schema()
+	name_schema = create_name_schema()
+	url_schema = create_url_schema()
+
+	# for engine in ['ada', 'babbage', 'curie', 'davinci']:
+	# for engine in ['ada', 'davinci']:
+	for engine in ['davinci']:
+		print('Processing model %s' % engine)
+		run_date_investigation(gpt3, engine, date_schema, max_tokens=20)
+		# run_schema_task(gpt3, engine, name_schema, max_tokens=20)
+		# run_schema_task(gpt3, engine, url_schema, max_tokens=150)
+		print()
+	gpt3.run_staged_queries()
+	save_df(rows)
+
+def slides():
+	date_schema = create_date_schema()
+	s = date_schema
+	content = date_schema(2020, 11, 13)
+	sfi = 0
+	tfi = 1
+	src_form = s.forms['src_form'][sfi].function(content)
+	tgt_form = s.forms['tgt_form'][tfi].function(content)
+	sm = Sample(content, src_form, tgt_form)
+	example = (sm.src_form, sm.tgt_form)
+	print('Input: %s\nOutput: %s' % (example))
+
+# Input: 2020-11-13
+# Output: 11/13/2020
+
+if __name__ == '__main__':
+	# main(sys.argv)
+	# main2(sys.argv)
+	main3(sys.argv)
 
 
