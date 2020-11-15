@@ -158,7 +158,10 @@ class GPT3:
                     cntr = int(k2[2:])
                     print('Skipping %d staged requests' % cntr)
             response = self.make_query(**kwargs)
-            print(colored(response['choices'][0]['text'], 'yellow'))
+            if response is not None and response['choices']:
+                for choice in response['choices']:
+                    print(colored(choice['text'], 'yellow'))
+                    self.print_logprobs(choice)
         for key in staged.keys():
             del self.cache[key]
         write_cache(self.cache)
@@ -173,6 +176,7 @@ class GPT3:
         if response is not None:
             for choice in response['choices']:
                 print(colored(choice['text'], RESPONSE_COLOR))
+                self.print_logprobs(choice)
         print('')
 
     def few_shot(self, examples: List[Tuple[str, str]], x: str, y: Optional[str] = None, prefix: Optional[str] = None, x_label: str = 'Input', y_label: str = 'Output', return_kwargs: bool = False, formatter = None, verbose=True, **kwargs):
@@ -214,10 +218,20 @@ class GPT3:
                     extra = ''
                 if verbose:
                     print(f'[{len(examples)} examples] {x} -> {colored(predicted_y, RESPONSE_COLOR)}{extra}')
+                    self.print_logprobs(choice)
         retval = [response, rel]
         if return_kwargs:
             retval.append(kwargs)
         return retval
+
+    def print_logprobs(self, response_choice):
+        if 'logprobs' in response_choice and response_choice['logprobs'] is not None:
+            print(colored(' | ', 'yellow').join(response_choice['logprobs']['tokens']))
+            arr = response_choice['logprobs']['top_logprobs']
+            cur_data = []
+            for obj in arr:
+                obj = OrderedDict(sorted(obj.items(), key=lambda x: -x[1]))
+                print(json.dumps(obj, indent=4)) # , sort_keys=True))
 
 class MockGPT3:
     def __init__(self, cache: Dict, default_generation_kwargs: Dict = DEFAULT_GENERATION_KWARGS):
@@ -316,7 +330,9 @@ class MockGPT3:
                     print('Skipping %d staged requests' % cntr)
             response = self.make_query(**kwargs)
             if response is not None and response['choices']:
-                print(colored(response['choices'][0]['text'], 'yellow'))
+                for choice in response['choices']:
+                    print(colored(choice['text'], 'yellow'))
+                    self.print_logprobs(choice)
         for key in staged.keys():
             del self.cache[key]
         write_cache(self.cache)
