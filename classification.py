@@ -19,7 +19,7 @@ from process import (
 from synthetic_syntax import escape_ansi
 
 def _run_task(gpt3, prefix, train_examples, test_examples):
-	engine = 'curie'
+	engine = 'davinci'
 	prefix = None
 	score = 0
 	total = 0
@@ -115,7 +115,7 @@ def run_task_B(gpt3):
 
 def run_task_C(gpt3):
 	prefix = """Classify the word or phrase using the labels "^*" for animals, "#@#" for plants & vegetables, and "!!~" for sports."""
-	train_examples = [ # 5 of each
+	train_examples = [ # 2 of each
 		('camel', '^*'),
 		('goldfish', '^*'),
 		('volleyball', '!!~'),
@@ -189,12 +189,130 @@ def run_task_D(gpt3):
 	]
 	_run_task(gpt3, prefix, train_examples, test_examples)
 
+def run_task_E(gpt3):
+	labels = {
+		'animal': 'plant/vegetable', # 'plant/vegetable'
+		'plant/vegetable': 'sport',
+		'sport': 'animal',
+	}
+	prefix = f"""Classify the word or phrase using the labels "{labels['animal']}" for animals, "{labels['plant/vegetable']}" for plants & vegetables, and "{labels['sport']}" for sports."""
+	# train_examples = [ # 2 of each
+	# 	('camel', labels['animal']),
+	# 	('goldfish', labels['animal']),
+	# 	('volleyball', labels['sport']),
+	# 	('lettuce', labels['plant/vegetable']),
+	# 	('lacrosse', labels['sport']),
+	# 	# ('luge', labels['sport']),
+	# 	# ('leopard', labels['animal']),
+	# 	# ('porcupine', labels['animal']),
+	# 	('beans', labels['plant/vegetable']),
+	# 	# ('celery', labels['plant/vegetable']),
+	# 	# ('hockey', labels['sport']),
+	# 	# ('horse', labels['animal']),
+	# 	# ('radish', labels['plant/vegetable']),
+	# 	# ('broccoli', labels['plant/vegetable']),
+	# 	# ('archery', labels['sport']),
+	# ]
+	# train_examples = [ # 5 of each
+	# 	('camel', labels['animal']),
+	# 	('goldfish', labels['animal']),
+	# 	('volleyball', labels['sport']),
+	# 	('lettuce', labels['plant/vegetable']),
+	# 	('lacrosse', labels['sport']),
+	# 	('luge', labels['sport']),
+	# 	('leopard', labels['animal']),
+	# 	('porcupine', labels['animal']),
+	# 	('beans', labels['plant/vegetable']),
+	# 	('celery', labels['plant/vegetable']),
+	# 	('hockey', labels['sport']),
+	# 	('horse', labels['animal']),
+	# 	('radish', labels['plant/vegetable']),
+	# 	('broccoli', labels['plant/vegetable']),
+	# 	('archery', labels['sport']),
+	# ]
+	# train_examples = [ # 7 of each
+	# 	('camel', labels['animal']),
+	# 	('goldfish', labels['animal']),
+	# 	('volleyball', labels['sport']),
+	# 	('lettuce', labels['plant/vegetable']),
+	# 	('lacrosse', labels['sport']),
+	# 	('luge', labels['sport']),
+	# 	('leopard', labels['animal']),
+	# 	('porcupine', labels['animal']),
+	# 	('beans', labels['plant/vegetable']),
+	# 	('celery', labels['plant/vegetable']),
+	# 	('hockey', labels['sport']),
+	# 	('horse', labels['animal']),
+	# 	('radish', labels['plant/vegetable']),
+	# 	('broccoli', labels['plant/vegetable']),
+	# 	('archery', labels['sport']),
+	# 	('zebra', labels['animal']),
+	# 	('bowling', labels['sport']),
+	# 	('corn', labels['plant/vegetable']),
+	# 	('badminton', labels['sport']),
+	# 	('lion', labels['animal']),
+	# 	('zucchini', labels['plant/vegetable']),
+	# ]
+	train_examples = [ # 10 of each
+		('camel', labels['animal']),
+		('goldfish', labels['animal']),
+		('volleyball', labels['sport']),
+		('lettuce', labels['plant/vegetable']),
+		('lacrosse', labels['sport']),
+		('luge', labels['sport']),
+		('leopard', labels['animal']),
+		('porcupine', labels['animal']),
+		('beans', labels['plant/vegetable']),
+		('celery', labels['plant/vegetable']),
+		('hockey', labels['sport']),
+		('horse', labels['animal']),
+		('radish', labels['plant/vegetable']),
+		('broccoli', labels['plant/vegetable']),
+		('archery', labels['sport']),
+		('zebra', labels['animal']),
+		('bowling', labels['sport']),
+		('corn', labels['plant/vegetable']),
+		('badminton', labels['sport']),
+		('lion', labels['animal']),
+		('zucchini', labels['plant/vegetable']),
+		('billiards', labels['sport']),
+		('football', labels['sport']),
+		('sheep', labels['animal']),
+		('beet', labels['plant/vegetable']),
+		('wolf', labels['animal']),
+		('kale', labels['plant/vegetable']),
+		('golf', labels['sport']),
+		('onions', labels['plant/vegetable']),
+		('duck', labels['animal']),
+	]
+	set_seed(0)
+	train_examples = list(np.random.permutation(train_examples))
+	print('\n'.join(list(map(lambda x: ' -> '.join(x), train_examples))))
+	test_examples = [
+		('llama', labels['animal']),
+		('cat', labels['animal']),
+		('elephant', labels['animal']),
+		('monkey', labels['animal']),
+		('panda', labels['animal']),
+		('cucumber', labels['plant/vegetable']),
+		('peas', labels['plant/vegetable']),
+		('tomato', labels['plant/vegetable']),
+		('spinach', labels['plant/vegetable']),
+		('carrots', labels['plant/vegetable']),
+		('rugby', labels['sport']),
+		('cycling', labels['sport']),
+		('baseball', labels['sport']),
+		('tennis', labels['sport']),
+		('judo', labels['sport']),
+	]
+	_run_task(gpt3, prefix, train_examples, test_examples)
+
 def main(argv):
 	GPT = GPT3 if 'submit' in argv else MockGPT3
 	cache_fname = f'cache_{GPT.__name__}.jsonl'
 	cache = read_cache(cache_fname)
 	gpt3 = GPT(cache)
-	run_task_C(gpt3)
+	run_task_E(gpt3)
 	gpt3.run_staged_queries()
 
 
