@@ -3,6 +3,10 @@ import gzip
 import sys
 from tqdm import tqdm
 
+from process import (
+  MockGPT3, GPT3, read_cache, write_cache, get_key
+)
+
 if len(sys.argv) == 2:
   json_fp = sys.argv[1]
   dry = True
@@ -11,6 +15,8 @@ elif len(sys.argv) == 3:
   import openai
   openai.api_key = api_key.strip()
   dry = False
+  cache = read_cache('cache_chris_GPT3.jsonl')
+  gpt3 = GPT3(cache)
 else:
   raise ValueError()
 
@@ -23,9 +29,8 @@ for tid, inputs in tqdm(tid_to_inputs.items(), total=len(tid_to_inputs)):
     response = {'choices': ['foo']}
   else:
     try:
-      response = openai.Completion.create(**inputs)
+      response = gpt3.make_query(**inputs)
     except Exception as e:
-      print(e)
       response = None
   tid_to_outputs[tid] = response
 

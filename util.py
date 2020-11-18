@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import inspect
 import json
 import numpy as np
 import os
@@ -55,3 +56,25 @@ def repeat(lst, n):
 	['a', 'a', 'b', 'b', 'c', 'c']
 	"""
 	return [x for x in lst for _ in range(n)]
+
+def is_iterable(maybe_lst):
+	if isinstance(maybe_lst, str):
+		return False
+	try:
+		_ = iter(maybe_lst)
+	except TypeError:
+		return False
+	else:
+		return True
+
+def get_type(funcname, attrname):
+	return inspect.signature(funcname).parameters[attrname].annotation
+
+def dict_to_key(obj):
+	if isinstance(obj, dict):
+		return tuple(sorted(({k: dict_to_key(v) for k, v in obj.items()}).items()))
+	elif is_iterable(obj):
+		return tuple(obj)
+	return obj
+
+

@@ -11,6 +11,8 @@ from termcolor import colored
 import time
 from tqdm import tqdm
 
+import util
+
 # from naclo_problems import run_naclo_test_suite
 # from tasks import (
 #     # gen_borple_1, gen_borple_2, gen_borple_3, 
@@ -54,9 +56,7 @@ def make_header(s: Any):
     return colored(f'===== {s}', HEADER_COLOR)
 
 def get_key(request):
-    if isinstance(request, str):
-        return request
-    return tuple(sorted(request.items()))
+    return util.dict_to_key(request)
 
 def read_cache(filename: str = DEFAULT_CACHE_PATH):
     cache = OrderedDict()
@@ -96,6 +96,8 @@ class GPT3:
         self.clear_staged_queries()
 
     def make_query(self, **kwargs) -> Dict:
+        if 'logit_bias' in kwargs and kwargs['logit_bias'] is None:
+            del kwargs['logit_bias']
         key = get_key(kwargs)
         _key = get_key({k: v for k, v in kwargs.items() if k != 'staged'})
         if _key in self.cache:
@@ -117,6 +119,7 @@ class GPT3:
                         'text': None
                     }]
                 }
+                raise Exception(e)
         return response
 
     def clear_staged_queries(self):
