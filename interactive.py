@@ -38,7 +38,10 @@ def match_key(_key):
 def run(gpt3):
 	kwargs = {
 		'engine': 'davinci',
-		'max_tokens': 15,
+		'max_tokens': 10,
+		'stop': ["\n", "\r", "\n\n"],
+		'logprobs': 100,
+		'temperature': 0.,
 	}
 	while True:
 		k = None
@@ -87,6 +90,7 @@ def run(gpt3):
 			# s = input('Enter text:\n')
 			print('Enter text:')
 			s = sys.stdin.read()
+			# s = """“Thank you for doing business at our house, and I hope to see you again!” I left not a little unnerved, and still woozy from the **leeches**. “Come on,” said Nepthys, “you could use a drink.”\nQ: What are appropriate substitutes for **leeches** in the above text?\nA: bloodsucker, parasite, bloodletting, bleeding, worm, blood sucker, blood let, insect\n\nElectronic theft by foreign and industrial spies and disgruntled employees is costing U.S. companies billions and eroding their international competitive advantage. That was the message delivered by government and private security experts at an all-day conference on corporate **electronic** espionage. "Hostile and even friendly nations routinely steal information from U.S. companies and share it with their own companies," said Noel D. Matchett, a former staffer at the federal National Security Agency and now president of Information Security Inc., Silver Spring, Md.\nQ: What are appropriate substitutes for **electronic** in the above text?\nA:"""
 			gpt3.complete(
 				prompt=s,
 				**kwargs
@@ -100,7 +104,7 @@ def main(argv):
 	GPT = GPT3 if 'submit' in argv else MockGPT3
 	print('Using ' + GPT.__name__)
 
-	cache_fname = f'cache_{GPT.__name__}.jsonl'
+	cache_fname = f'cache_chris_{GPT.__name__}.jsonl'
 	cache = read_cache(cache_fname)
 	gpt3 = GPT(cache)
 	run(gpt3)

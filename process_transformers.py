@@ -89,7 +89,7 @@ def compute_perplexity(model, input_ids):
 
         lls.append(log_likelihood)
 
-    ppl = torch.exp(torch.stack(lls).sum() / i)
+    ppl = torch.exp(torch.stack(lls).sum() / i) # TODO i correct?
     return ppl # lower is better 
 
 def compute_perplexity_v2(model, input_ids):
@@ -113,7 +113,7 @@ def compute_perplexity_v2(model, input_ids):
         lls.append(log_likelihood)
         past = past[:,stride:] # TODO check!
 
-    ppl = torch.exp(torch.stack(lls).sum() / i)
+    ppl = torch.exp(torch.stack(lls).sum() / i) # TODO i correct?
     return ppl # lower is better 
 
 def generate_one_by_one(model, tokenizer):
@@ -150,6 +150,28 @@ def compute_perplexity_v3(model, input_ids, reference_ids):
         context = torch.Tensor([ref_id]) # TODO check!
     ppl = torch.exp(torch.stack(lls).sum() / len(lls)) # TODO check len(lls)!
     return ppl # lower is better 
+
+def compute_perplexity_v4(model, encodings):
+    max_length = model.config.n_positions
+    stride = 512
+
+    lls = []
+    for i in tqdm(range(0, encodings.input_ids.size(1), stride)):
+        begin_loc = max(i + stride - max_length, 0)
+        end_loc = min(i + stride, encodings.input_ids.size(1))
+        trg_len = end_loc - i    # may be different from stride on last loop
+        input_ids = encodings.input_ids[:,begin_loc:end_loc].to(device)
+        target_ids = input_ids.clone()
+        target_ids[:,:-trg_len] = -100
+
+        with torch.no_grad():
+            outputs = model(input_ids, labels=target_ids)
+            log_likelihood = outputs[0] * trg_len
+
+        lls.append(log_likelihood)
+
+    ppl = torch.exp(torch.stack(lls).sum() / end_loc)
+    return ppl # lower is better
 
 def set_seed(seed: int = 0):
     random.seed(seed)

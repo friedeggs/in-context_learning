@@ -23,16 +23,22 @@ else:
 with gzip.open(json_fp, 'rt') as f:
   tid_to_inputs = json.load(f)['inputs']
 
-tid_to_outputs = {}
-for tid, inputs in tqdm(tid_to_inputs.items(), total=len(tid_to_inputs)):
-  if dry:
-    response = {'choices': ['foo']}
-  else:
-    try:
-      response = gpt3.make_query(**inputs)
-    except Exception as e:
-      response = None
-  tid_to_outputs[tid] = response
+count = 0
+while count < len(tid_to_inputs):
+  count = 0
+  tid_to_outputs = {}
+  for tid, inputs in tqdm(tid_to_inputs.items(), total=len(tid_to_inputs)):
+    if dry:
+      response = {'choices': ['foo']}
+    else:
+      try:
+        response = gpt3.make_query(**inputs)
+        count += 1
+      except Exception as e:
+        print(e)
+        response = None
+    tid_to_outputs[tid] = response
+  print('%d/%d' % (count, len(tid_to_inputs)))
 
 with gzip.open(json_fp.replace('.json.gz', '.out.json.gz'), 'wt') as f:
   f.write(json.dumps(tid_to_outputs, indent=2))

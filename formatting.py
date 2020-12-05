@@ -1,24 +1,32 @@
 
 import sys, os
 # import exrex
+import json
+from num2words import num2words
 import numpy as np
+from operator import add, sub, mul, truediv as div, neg
 import pandas as pd
 import random
 import scipy
 import scipy.special
+from collections import defaultdict, OrderedDict
 from termcolor import colored
 
 from process import (
-    GPT3,
-    MockGPT3,
-    read_cache,
+	GPT3,
+	MockGPT3,
+	read_cache,
+)
+from sample import (
+	evaluate
 )
 
 from util import escape_ansi, set_seed
 
 set_seed()
 
-CSV_PATH = 'results_brackets.csv'
+# CSV_PATH = 'results_formatting.csv'
+CSV_PATH = 'results_sequence_mapping.csv'
 keys_for_comparison = [
 	'engine',
 	'temperature',
@@ -45,10 +53,23 @@ keys_to_keep = [
 	'x',
 	'y',
 	'pred',
-	'balanced',
-	'n',
+	# 'balanced',
+	# 'n',
 	'score',
 ]
+
+DEFAULT_KWARGS = {
+	'temperature': 0, 
+	'prefix': None, 
+	# 'engine': engine, 
+	'max_tokens': 50, # 20, 
+	'staged': True, 
+	'return_kwargs': True,
+	'stop': '\n',
+	'verbose': False,
+	'logprobs': 100,
+	# 'formatter': formatter,
+}
 
 def _run_helper(gpt3, engine, train_examples, test_examples, formatter=None, **kwargs):
 	score = 0
@@ -64,11 +85,12 @@ def _run_helper(gpt3, engine, train_examples, test_examples, formatter=None, **k
 		'prefix': None, 
 		'engine': engine, 
 		'max_tokens': 45, 
+		# 'max_tokens': 50, # 45, 
 		'staged': True, 
 		'return_kwargs': True,
 		'formatter': formatter,
 		'stop': '\n',
-		'verbose': False,
+		'verbose': True,
 	}
 	_kwargs = {**default_generation_kwargs, **kwargs}
 
@@ -101,7 +123,7 @@ def _run_helper(gpt3, engine, train_examples, test_examples, formatter=None, **k
 
 		row = kwargs
 		del row['prompt']
-		row['n'] = x.count('{')
+		# row['n'] = x.count('{')
 		row['num_examples'] = len(train_examples)
 		row['balanced'] = (y == 'balanced')
 		row['x'] = x
@@ -112,8 +134,8 @@ def _run_helper(gpt3, engine, train_examples, test_examples, formatter=None, **k
 		rows.append(row)
 
 	# print(colored('Engine: %s' % engine, 'magenta'))
-	print(colored('Score: %d/%d (%d close, %d contains); %d pending' % (score, total, close, contains, pending), 'magenta'))
-	print('')
+	# print(colored('Score: %d/%d (%d close, %d contains); %d pending' % (score, total, close, contains, pending), 'magenta'))
+	# print('')
 
 
 	df = pd.DataFrame(rows) # , columns=column_names)
@@ -124,6 +146,7 @@ def _run_helper(gpt3, engine, train_examples, test_examples, formatter=None, **k
 		df = df[~df['is_duplicate']]
 		# print(df['rel'].value_counts())
 	df = df[keys_to_keep]
+	df = df.dropna(subset=['pred','x'])
 	df.to_csv(CSV_PATH)
 
 def run_aba_abb(gpt3, engine, formatter=None):
@@ -356,6 +379,45 @@ def run_remove_nonalphanumeric(gpt3, engine, n_train, separator=', ', offset=Non
 	# print(colored('Engine: %s' % engine, 'magenta'))
 	# print(colored('Score: %d/%d (%d close); %d pending' % (score, total, close, pending), 'magenta'))
 	# print('')
+
+def run_remove_nonalphanumeric_distinct(gpt3, engine, n_train, n_test, separator=', ', offset=None, max_tokens=25, n_kinds=5, **kwargs):
+	# formatter = lambda tup: f'{tup[0]} -> {tup[1]}'
+	formatter = None
+	score = 0
+	total = n_test * n_kinds
+	ch1s = np.random.choice(list('!@#$%^&*()_+'), n_kinds, replace=False)
+	for k, ch1 in enumerate(ch1s):
+		set_seed(k)
+		examples = []
+		set_seed(ord(ch1))
+		for i in range(n_train + n_test):
+			chars = np.random.choice(list('abcdefghijklmnopqrstuvwxyz') + [ch1] * 24, np.random.randint(5,11), replace=False)
+			chars2 = list(filter(lambda x: x != ch1, chars))
+			word = separator.join(chars)
+			word2 = separator.join(chars2)
+			examples.append((word, word2))
+
+		# _run_helper(gpt3, engine, examples[:n_train], examples[n_train:], formatter=formatter, max_tokens=25)
+		kwargs = {
+			'engine': engine, 
+			'formatter': formatter,
+			'max_tokens': max_tokens,
+		}
+		kwargs = {**DEFAULT_KWARGS, **kwargs}
+		additional_kwargs = {
+			'task': 'remove_nonalphanumeric_distinct',
+			'schema_type': 'sequence_mapping',
+		}
+		score += evaluate(gpt3, 
+			train_examples=examples[:n_train], 
+			test_examples=examples[n_train:], 
+			additional_kwargs=additional_kwargs, 
+			**kwargs
+		)
+	print(colored('Engine: %s' % engine, 'magenta'))
+	print(colored('Score: %d/%d' % (score, total), 'magenta'))
+	print('')
+
 
 def run_remove_nonalphanumeric_and_reverse(gpt3, engine, n_train, separator=', ', offset=None):
 	set_seed()
@@ -716,7 +778,7 @@ def run_permutation(gpt3, engine, n):
 
 def run_spelling(gpt3, engine): 
 	set_seed()
-	n_train = 50
+	n_train = 50 # 5
 	n_test = 10
 
 	with open('data/google-10000-english.txt') as f:
@@ -730,6 +792,91 @@ def run_spelling(gpt3, engine):
 		word = np.random.choice(lines)
 		examples.append((word, ' '.join(list(word.upper()))))
 	_run_helper(gpt3, engine, examples[:n_train], examples[n_train:], max_tokens=50, formatter=formatter)
+
+def run_spelling_2(gpt3, engine): 
+	set_seed()
+	n_train = 50
+	n_test = 10 # 10
+
+	with open('data/google-10000-english.txt') as f:
+		lines = list(map(str.rstrip, f.readlines()))
+	lines = np.random.permutation(lines)
+
+	formatter = lambda tup: f'{tup[0]} -> {tup[1]}'
+
+	examples = []
+	for i in range(n_train + n_test):
+		word = np.random.choice(lines)
+		examples.append((word, ' '.join(list(word.lower()))))
+	_run_helper(gpt3, engine, examples[:n_train], examples[n_train:], max_tokens=50, formatter=formatter)
+
+def run_spelling_and_interleave(gpt3, engine): 
+	set_seed()
+	n_train = 50
+	n_test = 10 # 10
+
+	with open('data/google-10000-english.txt') as f:
+		lines = list(map(str.rstrip, f.readlines()))
+	lines = np.random.permutation(lines)
+
+	formatter = lambda tup: f'{tup[0]} -> {tup[1]}'
+
+	examples = []
+	for i in range(n_train + n_test):
+		word = np.random.choice(lines)
+		examples.append((word, '-'.join(list(word.upper()))))
+	_run_helper(gpt3, engine, examples[:n_train], examples[n_train:], max_tokens=50, logprobs=100, formatter=formatter)
+
+def run_spelling_and_interleave_reverse(gpt3, engine): 
+	set_seed()
+	n_train = 50
+	n_test = 10 # 10
+
+	with open('data/google-10000-english.txt') as f:
+		lines = list(map(str.rstrip, f.readlines()))
+	lines = np.random.permutation(lines)
+
+	formatter = lambda tup: f'{tup[0]} -> {tup[1]}'
+
+	examples = []
+	for i in range(n_train + n_test):
+		word = np.random.choice(lines)
+		examples.append(('-'.join(list(word.upper())), word))
+	_run_helper(gpt3, engine, examples[:n_train], examples[n_train:], max_tokens=50, logprobs=100, formatter=formatter)
+
+def run_spelling_and_interleave_reverse_evaluate(gpt3, engine): 
+	set_seed()
+	n_train = 50
+	n_test = 10 # 10
+
+	with open('data/google-10000-english.txt') as f:
+		lines = list(map(str.rstrip, f.readlines()))
+	lines = np.random.permutation(lines)
+
+	formatter = lambda tup: f'{tup[0]} -> {tup[1]}'
+
+	examples = []
+	for i in range(n_train + n_test):
+		word = np.random.choice(lines)
+		examples.append(('-'.join(list(word.upper())), word))
+
+	kwargs = {
+		'temperature': 0, 
+		'prefix': None, 
+		'engine': engine, 
+		'max_tokens': 50, # 20, 
+		'staged': True, 
+		'return_kwargs': True,
+		'stop': '\n',
+		'verbose': False,
+		'logprobs': 100,
+		# 'formatter': formatter,
+	}
+	additional_kwargs = {
+		'task': 'spelling_and_interleave_reverse',
+		'schema_type': 'spelling'
+	}
+	evaluate(gpt3, train_examples=examples[:n_train], test_examples=examples[n_train:], additional_kwargs=additional_kwargs, **kwargs)
 
 def run_spelling_and_uppercase_all_but_first_two(gpt3, engine): 
 	set_seed()
@@ -1156,6 +1303,141 @@ def run_balanced_brackets_4_5(gpt3, engine, bracket_symbols='()'):
 
 	_run_helper(gpt3, engine, train_examples, test_examples)
 
+def run_random_number_from_a_to_b(gpt3, engine, low=1, high=5):
+	set_seed()
+	n_train = 50
+	n_test = 1
+
+	formatter = lambda tup: f'Ex: {tup[1]}'
+
+	counts = defaultdict(int)
+	examples = []
+	for i in range(n_train):
+		x = np.random.randint(low, high)
+		examples.append((None, x))
+		counts[x] += 1
+	for i in range(n_test):
+		x = np.random.randint(low, high)
+		examples.append((None, None))
+
+	_run_helper(gpt3, engine, examples[:n_train], examples[n_train:], max_tokens=2, logprobs=100, formatter=formatter)
+	counts = OrderedDict(sorted(counts.items(), key=lambda x: -x[1]))
+	# print(counts)
+	print(json.dumps(counts, indent=4))
+
+	# " 3": -1.2914898,
+	# " 4": -1.313743,
+	# " 2": -1.4056236,
+	# " 1": -1.6714375,
+
+	# " 4": -1.0392922,
+	# " 1": -1.4164628,
+	# " 2": -1.5644042,
+	# " 3": -1.6542747,
+
+# 36, 24, 24, 16
+
+# " 4": 0.32
+# " 1": 0.27
+# " 2": 0.21
+# " 3": 0.19
+
+# " 4": 0.35
+# " 1": 0.24
+# " 2": 0.21
+# " 3": 0.19
+
+def run_random_bernoulli(gpt3, engine, p=.5):
+	set_seed()
+	n = 20
+
+	formatter = lambda tup: f'Ex: {tup[1]}'
+
+	counts = defaultdict(lambda: 1)
+	examples = []
+	prev = None
+	for i in range(n):
+		heads = random.random() < p
+		x = 'True' if heads else 'False'
+		examples.append((None, x))
+		counts[x] += 1
+
+		_run_helper(gpt3, engine, examples, [(None, None)], max_tokens=1, logprobs=100, formatter=formatter)
+		# counts = OrderedDict(sorted(counts.items(), key=lambda x: -x[1]))
+		# # print(counts)
+		# print(json.dumps(counts, indent=4))
+		frac = 1. * (counts['True']-1) / (i+1)
+		val = 1. * counts['True'] / (i+1+2)
+		ch = ''
+		if prev is not None:
+			ch = '↓' if val < prev else '↑'
+		prev = val
+		print('%.2f %s %.2f' % (val, ch, frac))
+
+def run_unnatural_addition(gpt3, engine, sep1=' + ', sep2=' = ', n_train=50, n_test=1, max_tokens=5, op=add, **kwargs):
+	set_seed()
+
+	formatter = lambda tup: f'{tup[0]}{sep2}{tup[1]}'
+
+	examples = []
+	for i in range(n_train + n_test):
+		a, b = np.random.randint(0, 100, 2)
+		ans = op(a, b)
+		examples.append(('%d%s%d' % (a, sep1, b), f'{ans}'))
+	# _run_helper(gpt3, engine, examples[:n_train], examples[n_train:], max_tokens=max_tokens, formatter=formatter, **kwargs)
+	kwargs = {
+		'engine': engine, 
+		'formatter': formatter,
+		'max_tokens': max_tokens,
+	}
+	kwargs = {**DEFAULT_KWARGS, **kwargs}
+	additional_kwargs = {
+		'task': 'unnatural_addition',
+		'schema_type': 'arithmetic',
+		# 'a': a,
+		# 'b': b,
+		'sep1': sep1,
+		'sep2': sep2,
+	}
+	evaluate(gpt3, 
+		train_examples=examples[:n_train], 
+		test_examples=examples[n_train:], 
+		additional_kwargs=additional_kwargs, 
+		**kwargs
+	)
+
+def run_arithmetic_in_words(gpt3, engine, sep1=' + ', sep2=' = ', n_train=50, n_test=1, max_tokens=10, op=add, **kwargs):
+	set_seed()
+
+	formatter = lambda tup: f'{tup[0]}{sep2}{tup[1]}'
+
+	examples = []
+	for i in range(n_train + n_test):
+		a, b = np.random.randint(0, 100, 2)
+		ans = op(a, b)
+		a = num2words(a)
+		b = num2words(b)
+		ans = num2words(ans)
+		examples.append((f'{a}{sep1}{b}', ans))
+
+	# _run_helper(gpt3, engine, examples[:n_train], examples[n_train:], max_tokens=max_tokens, formatter=formatter, **kwargs)
+	kwargs = {
+		'engine': engine, 
+		'formatter': formatter,
+		'max_tokens': max_tokens,
+	}
+	kwargs = {**DEFAULT_KWARGS, **kwargs}
+	additional_kwargs = {
+		'task': 'arithmetic_in_words',
+		'schema_type': 'arithmetic',
+	}
+	evaluate(gpt3, 
+		train_examples=examples[:n_train], 
+		test_examples=examples[n_train:], 
+		additional_kwargs=additional_kwargs, 
+		**kwargs
+	)
+
 """
 from formatting import load_df
 
@@ -1194,18 +1476,18 @@ def main(argv):
 		# (run_reverse_10, [], {}),
 		# (run_aba_abb, [], {}),
 		# (run_aba_abb_comma_separated, [], {}),
-		(run_char_substitution, [], {}),
-		(run_char_substitution, [], {'offset': 1}),
-		(run_char_substitution, [], {'offset': 2}),
-		(run_char_substitution_comma_separated, [], {}),
-		(run_char_substitution_comma_separated, [], {'offset': 1}),
-		(run_char_substitution_comma_separated, [], {'offset': 2}),
-		(run_char_substitution_star, [], {'separator': ' ', 'n_train': 100}),
-		(run_char_substitution_star, [], {'separator': ', ', 'n_train': 50}),
+		# (run_char_substitution, [], {}),
+		# (run_char_substitution, [], {'offset': 1}),
+		# (run_char_substitution, [], {'offset': 2}),
+		# (run_char_substitution_comma_separated, [], {}),
+		# (run_char_substitution_comma_separated, [], {'offset': 1}),
+		# (run_char_substitution_comma_separated, [], {'offset': 2}),
+		# (run_char_substitution_star, [], {'separator': ' ', 'n_train': 100}),
+		# (run_char_substitution_star, [], {'separator': ', ', 'n_train': 50}),
 		# (run_char_substitution_hyphenated, [], {}),
 		# (run_char_substitution_hyphenated, [], {'offset': 1}),
 		# (run_char_substitution_hyphenated, [], {'offset': 2}),
-		(run_balanced_brackets_4_5, [], {}),
+		# (run_balanced_brackets_4_5, [], {}),
 		# (run_swap_first_last, [], {}),
 		# (run_swap_first_last_generalize, [], {}),
 		# (run_swap_first_last_longer, [], {}),
@@ -1217,6 +1499,10 @@ def main(argv):
 		# (run_permutation, [5], {}),
 		# (run_permutation, [6], {}),
 		# (run_spelling, [], {}),
+		# (run_spelling_2, [], {}),
+		# (run_spelling_and_interleave, [], {}),
+		# (run_spelling_and_interleave_reverse, [], {}),
+		# (run_spelling_and_interleave_reverse_evaluate, [], {}),
 		# (run_spelling_and_uppercase_all_but_first_two, [], {}),
 		# (run_spelling_and_uppercase_alternate, [], {}),
 		# (run_spelling_and_char_substitution, [], {}),
@@ -1233,14 +1519,14 @@ def main(argv):
 		# (run_reverse_fixed_length, [], {'n': 5, 'separator': ', ', 'n_train': 50}),
 		# (run_reverse_fixed_length, [], {'n': 5, 'separator': ' ', 'n_train': 50}),
 		# (run_reverse_fixed_length, [], {'n': 5, 'separator': ' ', 'n_train': 100}),
-		## davinci tasks
+		# # davinci tasks
 		# (run_swap_first_and_second_last, [], {}),
 		# (run_swap_first_and_second_last_generalize, [], {}),
 		# (run_swap_first_and_second_last_fixed_length, [8], {}),
 		# (rearrange_2D_variable, [1, 4], {}),
 		# (rearrange_2D_variable, [2, 4], {}),
-		(rearrange_2D_fixed, [4, 6], {'x_prefix': '\n', 'y_prefix': ''}),
-		(rearrange_2D_fixed, [3, 6], {'n_train': 25, 'x_prefix': '\n', 'y_prefix': ''}),
+		# (rearrange_2D_fixed, [4, 6], {'x_prefix': '\n', 'y_prefix': ''}),
+		# (rearrange_2D_fixed, [3, 6], {'n_train': 25, 'x_prefix': '\n', 'y_prefix': ''}),
 		# (rearrange_2D_fixed, [3, 5], {'n_train': 25, 'x_prefix': '\n', 'y_prefix': ''}),
 		# (rearrange_2D_fixed, [3, 4], {'n_train': 35, 'x_prefix': '\n', 'y_prefix': ''}),
 		# (rearrange_2D_fixed, [3, 3], {'n_train': 40, 'x_prefix': '\n', 'y_prefix': ''}),
@@ -1252,16 +1538,39 @@ def main(argv):
 		# (rearrange_2D_fixed, [2, 4], {'C1': 6, 'n_train': 35, 'x_prefix': '\n', 'y_prefix': ''}),
 		# (rearrange_2D_fixed, [2, 6], {'C1': 8, 'n_train': 35, 'x_prefix': '\n', 'y_prefix': ''}),
 		# (rearrange_2D_fixed, [6, 2], {'n_train': 35, 'x_prefix': '\n', 'y_prefix': ''}),
+		# (run_random_number_from_a_to_b, [], {}),
+		# # (run_random_number_from_a_to_b, [], {'low': , 'high': }),
+		# (run_random_bernoulli, [], {}),
+		# (run_unnatural_addition, [], {'sep1': ', ', 'sep2': ' -> '}),
+		# (run_unnatural_addition, [], {'sep1': ', ', 'sep2': ', '}),
+		# (run_unnatural_addition, [], {'sep1': ' # ', 'sep2': ' # '}),
+		# (run_unnatural_addition, [], {'sep1': ' # ', 'sep2': ' # '}),
+		# (run_unnatural_addition, [], {'logprobs': 100}),
+		# (run_unnatural_addition, [], {'logprobs': 100, 'sep1': ' - '}),
+		# # (run_unnatural_addition, [], {'logprobs': 100, 'n_train': 100, 'sep1': ' - '}),
+		# (run_unnatural_addition, [], {'logprobs': 100, 'sep1': ' * '}),
+		# (run_unnatural_addition, [], {'logprobs': 100, 'n_train': 100, 'n_test': 2, 'sep1': ' * '}),
+		# (run_arithmetic_in_words, [], {'logprobs': 100, 'n_train': 100}),
+		# (run_arithmetic_in_words, [], {'logprobs': 100, 'n_train': 100, 'sep1': ' - '}),
+		# (run_arithmetic_in_words, [], {'logprobs': 100, 'n_train': 100, 'sep1': ', ', 'sep2': ', '}),
+		# (run_arithmetic_in_words, [], {'logprobs': 100, 'n_train': 100, 'sep1': ', ', 'sep2': ' -> '}),
+		# (run_unnatural_addition, [], {'logprobs': 100, 'n_test': 50, 'sep1': ' - ', 'sep2': ' = '}),
+		# (run_arithmetic_in_words, [], {'logprobs': 100, 'n_train': 100, 'n_test': 50, 'sep1': ', ', 'sep2': ', '}),
+		(run_remove_nonalphanumeric_distinct, [], {'logprobs': 100, 'n_train': 15, 'n_test': 5, 'n_kinds': 3}),
+		(run_remove_nonalphanumeric_distinct, [], {'logprobs': 100, 'n_train': 100, 'n_test': 5, 'n_kinds': 3, 'separator': ' '}),
+		(run_remove_nonalphanumeric_distinct, [], {'logprobs': 100, 'echo': True, 'n_train': 100, 'n_test': 5, 'n_kinds': 3, 'separator': ' '}),
 	]
 	# for engine in ['ada', 'babbage', 'curie', 'davinci']:
 	# for engine in ['babbage', 'curie', 'davinci']:
 	for func, args, kwargs in tasks:
 		# for engine in ['ada', 'curie', 'davinci']:
 		for engine in ['davinci']:
+		# for engine in ['ada']: # , 'babbage', 'curie', 'davinci']:
 		# for engine in ['ada', 'babbage', 'curie', 'davinci']:
 			print(func.__name__, engine, args, kwargs)
 			func(gpt3, engine, *args, **kwargs)
 
+	print('This request will cost %d tokens' % gpt3.calculate_cost())
 	gpt3.run_staged_queries()
 
 	# FSTs

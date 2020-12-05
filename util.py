@@ -1,15 +1,33 @@
 from collections import OrderedDict
+import gzip
 import inspect
 import json
+import multiprocessing
 import numpy as np
 import os
 import random
 import re
 import sys
-from typing import Any, Callable, Dict, List, Tuple, Optional
 from termcolor import colored
 from tqdm import tqdm
+from typing import Any, Callable, Dict, List, Tuple, Optional
 
+MAX_INT = np.iinfo(np.int64).max
+
+tokenizer = None
+autotokenizer = None
+vocab = None
+
+def load_model():
+	from transformers import AutoTokenizer, GPT2LMHeadModel, GPT2TokenizerFast
+	global tokenizer, autotokenizer, vocab
+	model_id = 'gpt2'
+	if tokenizer is None:
+		tokenizer = GPT2TokenizerFast.from_pretrained(model_id)
+	if autotokenizer is None:
+		autotokenizer = AutoTokenizer.from_pretrained(model_id)
+	if vocab is None:
+		vocab = tokenizer.get_vocab()
 
 def set_seed(seed: int = 0):
 	random.seed(seed)
@@ -28,6 +46,9 @@ def load_file(filename):
 			return lines
 	if filename.endswith('.json'):
 		return json.loads(filename)
+	if filename.endswith('.json.gz'):
+		with gzip.open(filename, 'rt') as f:
+			return json.load(f)
 	raise Exception(f'File name {filename} ends with unrecognized extension.')
 
 def save_file(filename, obj):
@@ -50,6 +71,9 @@ def escape_ansi(line): # Source: https://stackoverflow.com/a/38662876
 	ansi_escape = re.compile(r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]')
 	return ansi_escape.sub('', line)
 
+def flatten(lst_of_lsts):
+	return [el for lst in lst_of_lsts for el in lst]
+
 def repeat(lst, n):
 	"""
 	>>> repeat(list('abc'), 2)
@@ -67,6 +91,11 @@ def is_iterable(maybe_lst):
 	else:
 		return True
 
+def to_tuple(x):
+    if is_iterable(x):
+        return tuple(map(to_tuple, x))
+    return x
+
 def get_type(funcname, attrname):
 	return inspect.signature(funcname).parameters[attrname].annotation
 
@@ -76,5 +105,46 @@ def dict_to_key(obj):
 	elif is_iterable(obj):
 		return tuple(obj)
 	return obj
+
+def logsumexp(lst):
+	"""
+	>>> np.exp(reduce_func([np.log(.5), np.log(.3)]))
+	0.8
+	"""
+	return np.log(sum(map(np.exp, lst)))
+
+def count_tokens(s):
+	load_model()
+	return len(tokenizer.encode(s))
+
+def show_tokenization(s, delimiter='|'):
+	load_model()
+	if not isinstance(s, list):
+		s = [s]
+	texts = []
+	for _s in s:
+		token_ids = tokenizer.encode(_s)
+		tokens = tokenizer.convert_ids_to_tokens(token_ids)
+		if delimiter not in tokenizer.byte_decoder:
+			delimiter = chr(ord(' ') + 256)
+		text = delimiter.join(tokens)
+		text = bytearray([tokenizer.byte_decoder[c] for c in text]).decode("utf-8", errors=tokenizer.errors)
+		texts.append(text)
+	return texts
+
+def get_tokenization(s):
+	load_model()
+	token_ids = autotokenizer.encode(s)
+	tokens = autotokenizer.convert_ids_to_tokens(token_ids)
+	tokens = [bytearray([autotokenizer.byte_decoder[c] for c in tok]).decode("utf-8", errors=autotokenizer.errors) for tok in tokens]
+	return tokens
+
+def run_parallel(func, dataset, N_PARALLEL=8):
+	with multiprocessing.Pool(N_PARALLEL) as p:
+		list(tqdm(p.imap(func, dataset), total=len(dataset)))
+
+def plot_logprobs(logprobs):
+	xs = range(len(logprobs))
+	ys = logprobs
 
 

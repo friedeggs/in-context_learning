@@ -22,6 +22,21 @@ def show_tokenization(s, delimiter='|'):
         texts.append(text)
     return texts
 # show_tokenization(['middling age', 'walker', 'walked', 'stalker', 'stalked', 'gambler', 'gambled', 'better', 'betted', 'dodger', 'dodged', 'dancer', 'danced', 'painter', 'painted', 'tanker', 'tanked', 'thanker', 'thanked', 'banker', 'banked', 'paddler', 'paddled', 'riddler', 'waddler', 'shout', 'poster', 'posted', 'rouser', 'routed', 'router', 'shouter', 'shouted', 'mumbled', 'mumbler', 'tumbler', 'rumbled', 'bumbled', 'bumblebee', 'tumbled', 'stumbled', 'cuddled', 'studded', 'padded', 'added', 'confuddled', 'addled', 'saddled', 'dabbled', 'puddled', 'waddled', 'riddled', 'muddled', 'riddling', 'puddles', 'middles', 'riddles', 'paddles', 'waddles', 'waddling with a waddle', 'padling with a paddle', 'paddling with a paddle'])
+
+# def get_tokenization(s, delimiter='|'):
+#     if not isinstance(s, list):
+#         s = [s]
+#     texts = []
+#     for _s in s:
+#         token_ids = tokenizer.encode(_s)
+#         tokens = tokenizer.convert_ids_to_tokens(token_ids)
+#         if delimiter not in tokenizer.byte_decoder:
+#             delimiter = chr(ord(' ') + 256)
+#         text = delimiter.join(tokens)
+#         text = bytearray([tokenizer.byte_decoder[c] for c in text]).decode("utf-8", errors=tokenizer.errors)
+#         texts.append(text)
+#     return texts
+
 words = [
     'talk',
     'stalk',

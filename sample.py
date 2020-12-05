@@ -1,26 +1,22 @@
 import sys, os 
 import copy
-from collections import OrderedDict, namedtuple
+from collections import defaultdict, OrderedDict, namedtuple
 from itertools import product as cartesian_product
-# import exrex
+import exrex
 import json
 import numpy as np
 import pandas as pd
 import random
 import re
+import scipy
+import scipy.special
 from termcolor import colored
 import traceback
 
-try:
-	import exrex
-except ImportError:
-	class Dummy:
-		def __init__(self):
-			pass
-	exrex = Dummy()
-	exrex.getone = lambda x: 'XXX'
-
 from data.model_info import model_info
+# from formatting import (
+# 	run_spelling_and_interleave_reverse
+# )
 from process import (
 	GPT3, MockGPT3,
 	read_cache, 
@@ -29,12 +25,105 @@ from process_transformers import Runner
 import util
 from util import set_seed
 
+import torch
+import torch.nn as nn
+from transformers import GPT2LMHeadModel, GPT2TokenizerFast
+
+model_id = 'gpt2'
+tokenizer = GPT2TokenizerFast.from_pretrained(model_id)
+
+def compute_perplexity_th(target_str, logprobs):
+	labels = tokenizer.encode(target_str) 
+	loss_fn = nn.CrossEntropyLoss()
+	loss = loss_fn(labels, logprobs)
+	return torch.exp(loss)
+
+def get_perplexity(target_str, lps, gpt3, **run_kwargs):
+	"""
+	Args:
+		target_str (str)
+		lps (list of dict(str, float))
+	"""
+	tokens = util.get_tokenization(' ' + target_str + '\n')
+	p = 0.
+	computed = True
+	for idx, tok in enumerate(tokens):
+		_tok = None
+		_p = -np.inf
+		if idx >= len(lps):
+			computed = False
+		if not computed:
+			print(run_kwargs)
+			response = gpt3.complete(**run_kwargs)
+			# gpt3.run_staged_queries()
+			# response = gpt3.complete(**run_kwargs)
+			if response is not None:
+				_lps = response['choices'][0]['logprobs']['top_logprobs']
+				lps = [None] * idx
+				for _lp in _lps:
+					lp = OrderedDict(sorted(_lp.items(), key=lambda x: -x[1]))
+					lps.append(lp)
+				# 	print(list(lp.items())[0])
+				# print('--')
+				computed = True
+
+		if idx < len(lps):
+			lp = lps[idx]
+			_p = lp.get(tok, -np.inf)
+			p += _p 
+
+			_tok, _p = list(lp.items())[0]
+			if tok != _tok:
+				computed = False
+
+		run_kwargs['prompt'] += tok
+	return np.exp(-p/max(len(tokens), 1))
+
+def compute_perplexity(target_str, logprobs):
+	"""
+	Args:
+		target_str (str)
+		logprobs (list of dict(str, float))
+	"""
+	tokens = util.get_tokenization(' ' + target_str + '\n')
+	p = 0.
+	for idx, (lp, tok) in enumerate(zip(logprobs, tokens), 1):
+		_p = lp.get(tok, -np.inf)
+		p += _p 
+	return np.exp(-p/max(len(tokens), 1))
+
+def estimate_perplexity(target_str, logprobs):
+	"""
+	Sum every possible way in which we can form target_str from the logprobs.
+	Technically incorrect.
+	Args:
+		target_str (str)
+		logprobs (list of dict(str, float))
+	"""
+	target_str = ' ' + target_str + '\n' # TODO whitespace leniency? # TODO account for + '\n'
+	print(target_str.rstrip())
+	curr_prefixes = defaultdict(lambda: -np.inf, {'': 0.})
+	probs = [-np.inf]
+	for idx, lp in enumerate(logprobs, 1):
+		next_prefixes = defaultdict(list)
+		for _s, _p in lp.items():
+			for s, p in curr_prefixes.items():
+				ss = s + _s
+				if target_str.startswith(ss):
+					next_prefixes[ss].append(p + _p)
+		curr_prefixes = defaultdict(lambda: -np.inf, {k: scipy.special.logsumexp(v) for k, v in next_prefixes.items()})
+		# print(curr_prefixes.keys())
+		probs.append(curr_prefixes[target_str]/idx)
+	return np.exp(-scipy.special.logsumexp(probs))
+
 Content = namedtuple('Content', 'function unnaturalness')
 Form = namedtuple('Form', 'function unnaturalness')
 FormPair = namedtuple('FormPair', 'src_form tgt_form')
 Sample = namedtuple('Sample', 'content src_form tgt_form')
 
-CSV_PATH = 'results_sample.csv'
+# CSV_PATH = 'results_sample.csv'
+# CSV_PATH = 'results_systematicity.csv'
+CSV_PATH = 'results_error_analysis.csv'
 rows = []
 keys_for_comparison = [
 	'engine',
@@ -48,14 +137,14 @@ keys_for_comparison = [
 	# 'rel',
 	'x',
 	'y',
-	# 'test_idx',
+	'test_idx',
 ]
 keys_to_keep = [
 	'engine',
 	'temperature',
 	'max_tokens',
 	# 'staged',
-	# 'prompt',
+	'prompt',
 	'stop',
 	'num_examples',
 	# 'response',
@@ -74,6 +163,12 @@ keys_to_keep = [
 	'content_un',
 	'schema_type',
 	'test_idx',
+	# 'perplexity',
+	'perplexity_pred',
+	'perplexity_y',
+	'perplexity_natural',
+	'task',
+	'templates',
 ]
 data = []
 
@@ -152,6 +247,9 @@ def create_name_schema():
 	NameSchema.contents = contents
 	NameSchema.forms = forms
 	return NameSchema
+
+def create_spelling_schema():
+	pass
 
 def create_url_schema():
 	with open('data/urls2.txt') as f:
@@ -240,28 +338,36 @@ def print_samples(samples):
 	for _ in samples:
 		print(f'{_.src_form} \t-> \t{_.tgt_form}')
 
-def evaluate(gpt3, train_samples, test_samples, additional_kwargs={}, **kwargs):
+def evaluate(gpt3, train_samples=None, test_samples=None, train_examples=None, test_examples=None, formatter=None, additional_kwargs={}, **kwargs):
 	global rows, data
-	train_examples = [(_.src_form, _.tgt_form) for _ in train_samples]
-	test_examples = [(_.src_form, _.tgt_form) for _ in test_samples]
+	if train_examples is None:
+		train_examples = [(_.src_form, _.tgt_form) for _ in train_samples]
+	if test_examples is None:
+		test_examples = [(_.src_form, _.tgt_form) for _ in test_samples]
+	score = 0
 	for idx, (x, y) in enumerate(test_examples):
+		# if '1988-01-11' not in x: continue
 		response, rel, _kwargs = gpt3.few_shot(
 			train_examples, 
 			x=x, y=y, 
+			formatter=formatter,
 			**kwargs,
 		)
 		rel = util.escape_ansi(rel)
+		if rel == 'EQUALS':
+			score += 1
+		cur_data = []
 		try:
 			pred = response['choices'][0]['text'].lstrip().rstrip()
 			if 'logprobs' in kwargs and kwargs['logprobs'] is not None:
-				print(colored('|', 'yellow').join(response['choices'][0]['logprobs']['tokens']))
+				# print(colored('|', 'yellow').join(response['choices'][0]['logprobs']['tokens']))
 				arr = response['choices'][0]['logprobs']['top_logprobs']
-				cur_data = []
 				for obj in arr:
 					obj = OrderedDict(sorted(obj.items(), key=lambda x: -x[1]))
-					print(json.dumps(obj, indent=4)) # , sort_keys=True))
+					# print(json.dumps(obj, indent=4)) # , sort_keys=True))
 					cur_data.append(list(obj.items()))
 				data.append(cur_data)
+			# print(dict(cur_data[0]))
 		except Exception as e:
 			# print(e)
 			try:
@@ -269,14 +375,42 @@ def evaluate(gpt3, train_samples, test_samples, additional_kwargs={}, **kwargs):
 			except Exception:
 				pred = None
 		row = {**_kwargs, **additional_kwargs}
-		del row['prompt']
 		row['num_examples'] = len(train_examples)
 		row['x'] = x
 		row['y'] = y
 		row['pred'] = pred
 		row['rel'] = rel
-		row['test_idx'] = idx
+		# row['test_idx'] = idx
+		# if y is not None:
+		# 	perplexity = compute_perplexity(y, list(map(dict, cur_data))) # TODO not technically correct
+		run_kwargs = {**kwargs, **{'prompt': row['prompt']}} 
+		del run_kwargs['prefix']
+		del run_kwargs['return_kwargs']
+		# del run_kwargs['verbose']
+		# del run_kwargs['staged']
+		run_kwargs['staged'] = False
+		# if pred is not None:
+		# 	perplexity = get_perplexity(pred, list(map(dict, cur_data)), gpt3, **run_kwargs)
+		# 	row['perplexity_pred'] = perplexity
+		# 	if y is not None:
+		# 		if 'task' in additional_kwargs and additional_kwargs['task'] != 'arithmetic_in_words':
+		# 			perplexity = get_perplexity(y, list(map(dict, cur_data)), gpt3, **run_kwargs)
+		# 			row['perplexity_y'] = perplexity
+		# 	if 'task' in additional_kwargs and additional_kwargs['task'] == 'unnatural_addition':
+		# 		sep1 = additional_kwargs['sep1']
+		# 		sep2 = additional_kwargs['sep2']
+		# 		a = int(row['prompt'].split('\n')[-1].split(sep1)[0])
+		# 		b = int(row['prompt'].split('\n')[-1].split(sep1)[1].split(sep2[:-1])[0].rstrip())
+		# 		perplexity = get_perplexity(f'{a - b}', list(map(dict, cur_data)), gpt3, **run_kwargs)
+		# 		row['perplexity_natural'] = perplexity
+		# 	if 'task' in additional_kwargs and additional_kwargs['task'] == 'DateSchema' and len(train_examples) > 5:
+		# 		y2 = '!'.join(np.array(y.split('!'))[[0,2,1,3,4]])
+		# 		perplexity = get_perplexity(y2, list(map(dict, cur_data)), gpt3, **run_kwargs)
+		# 		row['perplexity_natural'] = perplexity
+		# del row['prompt']
 		rows.append(row)
+	# save_df()
+	return score
 
 def run_schema_task(gpt3, engine, schema_type, **kwargs):
 	default_kwargs = {
@@ -288,6 +422,7 @@ def run_schema_task(gpt3, engine, schema_type, **kwargs):
 		'return_kwargs': True,
 		'stop': '\n',
 		'verbose': False,
+		'logprobs': 100,
 	}
 	kwargs = {**default_kwargs, **kwargs}
 
@@ -335,6 +470,168 @@ def run_schema_task(gpt3, engine, schema_type, **kwargs):
 			'schema_type': schema_type.__name__
 		}
 		evaluate(gpt3, sm[:n_train], sm[n_train:], additional_kwargs=additional_kwargs, **kwargs)
+
+def run_perplexity_investigation(gpt3, engine, schema_type, n_train=5, n_test=1000, **kwargs):
+	default_kwargs = {
+		'temperature': 0, 
+		'prefix': None, 
+		'engine': engine, 
+		'max_tokens': 20, 
+		'staged': True, 
+		'return_kwargs': True,
+		'stop': '\n',
+		'verbose': False,
+		'logprobs': 100,
+	}
+	kwargs = {**default_kwargs, **kwargs}
+
+	set_seed(0)
+	# print(sample(schema_type, 0, 1, schema_type(*([0] * len(schema_type._fields)))))
+
+	n_train = 5 # 3
+	n_test = 1000 # 100 # 10 # 5
+
+	poss_fc = [
+		(FormPair(0, 4), schema_type(*([0] * len(schema_type._fields))))
+	]
+	# poss_fc = list(cartesian_product(
+	# 	exactly_k_unnatural(schema_type, 'forms'), 
+	# 	exactly_k_unnatural(schema_type, 'contents', 0))) \
+	# 	+ list(cartesian_product(
+	# 	exactly_k_unnatural(schema_type, 'forms', 0), 
+	# 	exactly_k_unnatural(schema_type, 'contents'))) \
+	# 	+ list(cartesian_product(
+	# 	exactly_k_unnatural(schema_type, 'forms', 0), 
+	# 	exactly_k_unnatural(schema_type, 'contents', 0)))
+	print(poss_fc[0])
+	print('Number of possible form and content combinations to process: %d' % len(poss_fc))
+
+	s = schema_type
+	samples = [[sample(schema_type, pf.src_form, pf.tgt_form, pc, seed) for seed in range(n_train + n_test)] \
+		for pf, pc in poss_fc]
+	for sm, (pf, pc) in zip(samples, poss_fc):
+		# print_samples(sm)
+		# print()
+		content_un = False
+		for field in s._fields:
+			if s.contents[field][getattr(pc, field)].unnaturalness > 0:
+				content_un = True
+		additional_kwargs = {
+			'src_form': pf.src_form,
+			'tgt_form': pf.tgt_form,
+			'content': pc,
+			'src_form_un': s.forms['src_form'][pf.src_form].unnaturalness,
+			'tgt_form_un': s.forms['tgt_form'][pf.tgt_form].unnaturalness,
+			'content_un': content_un, # s.contents[pc].unnaturalness,
+			'seed': 0,
+			'schema_type': schema_type.__name__,
+			'task': schema_type.__name__,
+		}
+		evaluate(gpt3, sm[:n_train], sm[n_train:], additional_kwargs=additional_kwargs, **kwargs)
+
+def run_perplexity_investigation_sampled_train(gpt3, engine, schema_type, n_train=5, n_test=1000, **kwargs):
+	default_kwargs = {
+		'temperature': 0, 
+		'prefix': None, 
+		'engine': engine, 
+		'max_tokens': 20, 
+		'staged': True, 
+		'return_kwargs': True,
+		'stop': '\n',
+		'verbose': False,
+		'logprobs': 100,
+	}
+	kwargs = {**default_kwargs, **kwargs}
+
+	set_seed(0)
+	# print(sample(schema_type, 0, 1, schema_type(*([0] * len(schema_type._fields)))))
+
+	# n_train = 5 # 3
+	# n_test = 1000 # 100 # 10 # 5
+
+	poss_fc = [
+		(FormPair(0, 4), schema_type(*([0] * len(schema_type._fields))))
+	]
+	# poss_fc = list(cartesian_product(
+	# 	exactly_k_unnatural(schema_type, 'forms'), 
+	# 	exactly_k_unnatural(schema_type, 'contents', 0))) \
+	# 	+ list(cartesian_product(
+	# 	exactly_k_unnatural(schema_type, 'forms', 0), 
+	# 	exactly_k_unnatural(schema_type, 'contents'))) \
+	# 	+ list(cartesian_product(
+	# 	exactly_k_unnatural(schema_type, 'forms', 0), 
+	# 	exactly_k_unnatural(schema_type, 'contents', 0)))
+	print(poss_fc[0])
+	print('Number of possible form and content combinations to process: %d' % len(poss_fc))
+
+	s = schema_type
+	samples = [[[sample(schema_type, pf.src_form, pf.tgt_form, pc, seed=i * (n_train + 1) + j) for j in range(n_train + 1)] for i in range(n_test)] \
+		for pf, pc in poss_fc]
+	for sms, (pf, pc) in zip(samples, poss_fc):
+		# print_samples(sm)
+		# print()
+		for idx, sm in enumerate(sms):
+			content_un = False
+			for field in s._fields:
+				if s.contents[field][getattr(pc, field)].unnaturalness > 0:
+					content_un = True
+			test_sm = sm[n_train]
+			additional_kwargs = {
+				# 'src_form': pf.src_form,
+				# 'tgt_form': pf.tgt_form,
+				# 'content': pc,
+				'src_form_type': pf.src_form,
+				'tgt_form_type': pf.tgt_form,
+				'content_type': pc,
+				'src_form': test_sm.src_form,
+				'tgt_form': test_sm.tgt_form,
+				'content': test_sm.content,
+				'src_form_un': s.forms['src_form'][pf.src_form].unnaturalness,
+				'tgt_form_un': s.forms['tgt_form'][pf.tgt_form].unnaturalness,
+				'content_un': content_un, # s.contents[pc].unnaturalness,
+				'seed': 0,
+				'schema_type': schema_type.__name__,
+				'task': schema_type.__name__,
+				'test_idx': idx,
+			}
+			evaluate(gpt3, sm[:n_train], sm[n_train:], additional_kwargs=additional_kwargs, **kwargs)
+
+# def run_perplexity_investigation_spelling(gpt3, engine, schema_type, **kwargs):
+# 		(run_spelling_and_interleave_reverse, [], {}),
+
+def run_spelling_and_interleave_reverse_evaluate(gpt3, engine): 
+	set_seed()
+	n_train = 50
+	n_test = 10 # 10
+
+	with open('data/google-10000-english.txt') as f:
+		lines = list(map(str.rstrip, f.readlines()))
+	lines = np.random.permutation(lines)
+
+	formatter = lambda tup: f'{tup[0]} -> {tup[1]}'
+
+	examples = []
+	for i in range(n_train + n_test):
+		word = np.random.choice(lines)
+		examples.append(('-'.join(list(word.upper())), word))
+
+	kwargs = {
+		'temperature': 0, 
+		'prefix': None, 
+		'engine': engine, 
+		'max_tokens': 50, # 20, 
+		'staged': True, 
+		'return_kwargs': True,
+		'stop': '\n',
+		'verbose': False,
+		'logprobs': 100,
+		# 'formatter': formatter,
+	}
+	additional_kwargs = {
+		'task': 'spelling_and_interleave_reverse',
+		'schema_type': 'spelling'
+	}
+	evaluate(gpt3, train_examples=examples[:n_train], test_examples=examples[n_train:], additional_kwargs=additional_kwargs, **kwargs)
 
 def run_date_investigation(gpt3, engine, schema_type, **kwargs):
 	default_kwargs = {
@@ -410,36 +707,36 @@ def run_date_investigation(gpt3, engine, schema_type, **kwargs):
 				tgt_form = s.forms['tgt_form'][tfi].function(content)
 				samples[poss_idx].append(Sample(content, src_form, tgt_form))
 
-	for poss_idx, (pf, pc) in enumerate(poss_fc):
-		# 234  2016-08-16  !08!16!2016!  !16!08!2016!         9
-		# 294  2018-01-18  !01!18!2018!  !18!01!2018!        76
-		# 297  2018-05-18  !05!18!2018!  !18!05!2018!        79
-		for idx in [9,76,79]: # 3 # 3 x 5 x 3 = 45 11/45
-			sm = copy.deepcopy(samples[poss_idx][n_train + idx + 100])
-			c = sm.content
-			for i in range(5):
-				modified = s(
-					day=np.random.randint(1,28+1),
-					month=np.random.randint(1,12+1),
-					year=np.random.randint(1970,2020),
-				)
-				sfi = pf.src_form
-				tfi = pf.tgt_form
+	# for poss_idx, (pf, pc) in enumerate(poss_fc):
+	# 	# 234  2016-08-16  !08!16!2016!  !16!08!2016!         9
+	# 	# 294  2018-01-18  !01!18!2018!  !18!01!2018!        76
+	# 	# 297  2018-05-18  !05!18!2018!  !18!05!2018!        79
+	# 	for idx in [9,76,79]: # 3 # 3 x 5 x 3 = 45 11/45
+	# 		sm = copy.deepcopy(samples[poss_idx][n_train + idx + 100])
+	# 		c = sm.content
+	# 		for i in range(5):
+	# 			modified = s(
+	# 				day=np.random.randint(1,28+1),
+	# 				month=np.random.randint(1,12+1),
+	# 				year=np.random.randint(1970,2020),
+	# 			)
+	# 			sfi = pf.src_form
+	# 			tfi = pf.tgt_form
 
-				content = s(year=c.year,month=c.month,day=modified.day)
-				src_form = s.forms['src_form'][sfi].function(content)
-				tgt_form = s.forms['tgt_form'][tfi].function(content)
-				samples[poss_idx].append(Sample(content, src_form, tgt_form))
+	# 			content = s(year=c.year,month=c.month,day=modified.day)
+	# 			src_form = s.forms['src_form'][sfi].function(content)
+	# 			tgt_form = s.forms['tgt_form'][tfi].function(content)
+	# 			samples[poss_idx].append(Sample(content, src_form, tgt_form))
 
-				content = s(year=c.year,month=modified.month,day=c.day)
-				src_form = s.forms['src_form'][sfi].function(content)
-				tgt_form = s.forms['tgt_form'][tfi].function(content)
-				samples[poss_idx].append(Sample(content, src_form, tgt_form))
+	# 			content = s(year=c.year,month=modified.month,day=c.day)
+	# 			src_form = s.forms['src_form'][sfi].function(content)
+	# 			tgt_form = s.forms['tgt_form'][tfi].function(content)
+	# 			samples[poss_idx].append(Sample(content, src_form, tgt_form))
 
-				content = s(year=modified.year,month=c.month,day=c.day)
-				src_form = s.forms['src_form'][sfi].function(content)
-				tgt_form = s.forms['tgt_form'][tfi].function(content)
-				samples[poss_idx].append(Sample(content, src_form, tgt_form))
+	# 			content = s(year=modified.year,month=c.month,day=c.day)
+	# 			src_form = s.forms['src_form'][sfi].function(content)
+	# 			tgt_form = s.forms['tgt_form'][tfi].function(content)
+	# 			samples[poss_idx].append(Sample(content, src_form, tgt_form))
 
 	for sm, (pf, pc) in zip(samples, poss_fc):
 		# print_samples(sm)
@@ -458,25 +755,28 @@ def run_date_investigation(gpt3, engine, schema_type, **kwargs):
 			'seed': 0,
 			'schema_type': schema_type.__name__
 		}
-		# evaluate(gpt3, sm[:n_train], sm[n_train:], additional_kwargs=additional_kwargs, **kwargs)
+		evaluate(gpt3, sm[:n_train], sm[n_train:], additional_kwargs=additional_kwargs, **kwargs)
 		# evaluate(gpt3, sm[:n_train] + [sm[n_train], sm[n_train+2]], sm[-150:], additional_kwargs=additional_kwargs, **kwargs)
-		evaluate(gpt3, sm[:n_train] + [sm[n_train], sm[n_train+2]], sm[-45:], additional_kwargs=additional_kwargs, **kwargs)
+		# evaluate(gpt3, sm[:n_train] + [sm[n_train], sm[n_train+2]], sm[-45:], additional_kwargs=additional_kwargs, **kwargs)
 
 
-def save_df(rows):
-	# print(rows)
-	df = pd.DataFrame(rows) # , columns=column_names)
-	# print(len(df))
-	if os.path.isfile(CSV_PATH):
-		df_prev = pd.read_csv(CSV_PATH)
+def save_df(csv_path=CSV_PATH, df=None):
+	global rows
+	if df is None:
+		# print(rows)
+		df = pd.DataFrame(rows) # , columns=column_names)
+		# print(len(df))
+	if os.path.isfile(csv_path):
+		df_prev = pd.read_csv(csv_path)
 		df = pd.concat([df, df_prev], sort=False)
-		df['is_duplicate'] = df[keys_for_comparison].duplicated()
-		df = df[~df['is_duplicate']]
-		# print(df['rel'].value_counts())
-	df = df[keys_to_keep]
+	df['is_duplicate'] = df[keys_for_comparison].duplicated()
+	df = df[~df['is_duplicate']]
+	# print(df['rel'].value_counts())
+	_keys_to_keep = set(keys_to_keep).intersection(df.keys())
+	df = df[_keys_to_keep]
 	# print(df)
 	# print(len(df))
-	df.to_csv(CSV_PATH)
+	df.to_csv(csv_path)
 
 """
 from sample import load_df, get_latex_stats
@@ -486,8 +786,9 @@ df[(df.src_form_un > 0) & !(df.tgt_form_un > 0)]
 """
 def load_df(csv_path=CSV_PATH):
 	df = pd.read_csv(csv_path)
-	df = df[keys_to_keep]
-	df = df.dropna(subset=['pred', 'schema_type', 'content_un'])
+	_keys_to_keep = set(keys_to_keep).intersection(df.keys())
+	df = df[_keys_to_keep]
+	df = df.dropna(subset=['pred', 'schema_type']) # , 'content_un'])
 	return df
 
 """
@@ -796,6 +1097,13 @@ def get_latex_stats(df, condition):
 	return str(data).replace('), (', ')(')[1:-1]
 	# return data
 
+def print_logprobs(engines):
+	for engine, cur_data in zip(engines, data):
+		print('Engine: %s' % engine)
+		for items in zip(*cur_data):
+			print('\t '.join(list(map(lambda x: x[0].replace("\n","nl").replace("<|endoftext|>","<eot>").ljust(5) + ': ' + f'{x[1]:.2f}'.ljust(8), items))))
+
+
 def main(argv):
 	GPT = GPT3 if 'submit' in argv else MockGPT3
 	print('Using ' + GPT.__name__)
@@ -930,7 +1238,7 @@ def main3(argv):
 		# run_schema_task(gpt3, engine, url_schema, max_tokens=150)
 		print()
 	gpt3.run_staged_queries()
-	save_df(rows)
+	save_df()
 
 def slides():
 	date_schema = create_date_schema()

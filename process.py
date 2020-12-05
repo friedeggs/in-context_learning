@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import defaultdict, OrderedDict
 import json
 from Levenshtein import distance as levenshtein
 import numpy as np
@@ -56,14 +56,20 @@ def make_header(s: Any):
     return colored(f'===== {s}', HEADER_COLOR)
 
 def get_key(request):
-    return util.dict_to_key(request)
+    if 'logit_bias' in request and isinstance(request['logit_bias'], list):
+        request['logit_bias'] = {k: v for k, v in request['logit_bias']}
+    key = util.dict_to_key(request)
+    return key
 
 def read_cache(filename: str = DEFAULT_CACHE_PATH):
     cache = OrderedDict()
     if os.path.exists(filename):
         for line in open(filename):
-             item = json.loads(line)
-             cache[get_key(item['request'])] = item['response']
+            try:
+                item = json.loads(line)
+                cache[get_key(item['request'])] = item['response']
+            except Exception:
+                pass
     #print(f"Read {len(cache)} cache entries")
     cache['__filename__'] = filename
     return cache
@@ -102,15 +108,17 @@ class GPT3:
         _key = get_key({k: v for k, v in kwargs.items() if k != 'staged'})
         if _key in self.cache:
             response = self.cache[_key]
-        elif 'staged' in kwargs:
+        elif 'staged' in kwargs and kwargs['staged']:
             self.cache[key] = response = None
         else:
             kwargs = dict(kwargs)
             if 'random' in kwargs:
                 del kwargs['random']
+            if 'staged' in kwargs:
+                del kwargs['staged']
             try:
                 response = openai.Completion.create(**kwargs)
-                self.cache[key] = response
+                self.cache[_key] = response
                 write_cache(self.cache)
             except openai.error.InvalidRequestError as e:
                 print(e)
@@ -124,6 +132,27 @@ class GPT3:
 
     def clear_staged_queries(self):
         staged = {key: value for key, value in self.cache.items() if key != '__filename__' and ('staged', True) in key}
+        for key in staged.keys():
+            del self.cache[key]
+        write_cache(self.cache)
+
+    def calculate_cost(self):
+        staged = {key: value for key, value in self.cache.items() if key != '__filename__' and ('staged', True) in key}
+        total = 0
+        for _, (key, value) in zip(tqdm(staged), staged.items()):
+            kwargs = defaultdict(int, key)
+            total += util.count_tokens(kwargs['prompt']) + kwargs['max_tokens']
+        return total
+
+    def _run_staged_query(self, item):
+        key, value = item
+        kwargs = dict(key)
+        del kwargs['staged']
+        _ = self.make_query(**kwargs)
+
+    def run_staged_queries_parallel(self): # TODO test
+        staged = {key: value for key, value in self.cache.items() if key != '__filename__' and ('staged', True) in key}
+        util.run_parallel(self._run_staged_query, staged.items())
         for key in staged.keys():
             del self.cache[key]
         write_cache(self.cache)
@@ -164,28 +193,30 @@ class GPT3:
             if response is not None and response['choices']:
                 for choice in response['choices']:
                     print(colored(choice['text'], 'yellow'))
-                    self.print_logprobs(choice)
+            #         self.print_logprobs(choice)
         for key in staged.keys():
             del self.cache[key]
         write_cache(self.cache)
 
-    def complete(self, **kwargs):
+    def complete(self, verbose=True, **kwargs):
         kwargs = {**self.default_generation_kwargs, **kwargs}
         response = self.make_query(**kwargs) 
         prompt = kwargs['prompt']
         del kwargs['prompt']
         # print(make_header(kwargs))
         # print(prompt, end='')
-        if response is not None:
-            for choice in response['choices']:
-                print(colored(choice['text'], RESPONSE_COLOR))
-                self.print_logprobs(choice)
-        print('')
+        if verbose:
+            if response is not None:
+                for choice in response['choices']:
+                    print(colored(choice['text'], RESPONSE_COLOR))
+                    # self.print_logprobs(choice)
+                print('')
+        return response
 
     def few_shot(self, examples: List[Tuple[str, str]], x: str, y: Optional[str] = None, prefix: Optional[str] = None, x_label: str = 'Input', y_label: str = 'Output', return_kwargs: bool = False, formatter = None, verbose=True, **kwargs):
         kwargs = {**self.default_generation_kwargs, **kwargs}
         if formatter is not None:
-            prompt = '\n'.join(map(formatter, examples + [(x, '')]))[:-1]
+            prompt = '\n'.join(map(formatter, examples + [(x, '')])).rstrip() # [:-1]
         else:
             prompt = f'{x_label}: {x}\n{y_label}:'
             if len(examples) > 0:
@@ -203,7 +234,8 @@ class GPT3:
         # print(make_header(kwargs))
         # print(prompt, end='')
         rel = None
-        y = y.lstrip().rstrip()
+        if y is not None:
+            y = y.lstrip().rstrip()
         if response is not None:
             for choice in response['choices']:
                 predicted_y = choice['text'].lstrip().rstrip()
@@ -229,12 +261,21 @@ class GPT3:
 
     def print_logprobs(self, response_choice):
         if 'logprobs' in response_choice and response_choice['logprobs'] is not None:
-            print(colored(' | ', 'yellow').join(response_choice['logprobs']['tokens']))
+            # print(colored(' | ', 'yellow').join(response_choice['logprobs']['tokens']))
             arr = response_choice['logprobs']['top_logprobs']
             cur_data = []
             for obj in arr:
                 obj = OrderedDict(sorted(obj.items(), key=lambda x: -x[1]))
                 print(json.dumps(obj, indent=4)) # , sort_keys=True))
+                # for k, v in list(obj.items())[:2]:
+                #     print(f"\"{k}\": " + "%.2f" % np.exp(v))
+                # val = np.exp(obj[' True'])
+                # ch = ''
+                # if hasattr(self, 'prev'):
+                #     ch = '↓' if val < self.prev else '↑'
+                # self.prev = val
+                # print("%.2f %s" % (val, ch))
+                break
 
 class MockGPT3:
     def __init__(self, cache: Dict, default_generation_kwargs: Dict = DEFAULT_GENERATION_KWARGS):
@@ -272,7 +313,7 @@ class MockGPT3:
     def few_shot(self, examples: List[Tuple[str, str]], x: str, y: Optional[str] = None, prefix: Optional[str] = None, x_label: str = 'Input', y_label: str = 'Output', return_kwargs: bool = False, formatter = None, stop: List[str] = ['\n'], verbose=True, **kwargs):
         kwargs = {**self.default_generation_kwargs, **kwargs}
         if formatter is not None:
-            prompt = '\n'.join(map(formatter, examples + [(x, '')]))[:-1]
+            prompt = '\n'.join(map(formatter, examples + [(x, '')])).rstrip() # [:-1]
         else:
             prompt = f'{x_label}: {x}\n{y_label}:'
             if len(examples) > 0:
@@ -335,7 +376,7 @@ class MockGPT3:
             if response is not None and response['choices']:
                 for choice in response['choices']:
                     print(colored(choice['text'], 'yellow'))
-                    self.print_logprobs(choice)
+                    # self.print_logprobs(choice)
         for key in staged.keys():
             del self.cache[key]
         write_cache(self.cache)

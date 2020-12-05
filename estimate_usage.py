@@ -9,7 +9,7 @@ import scipy
 import scipy.special
 from termcolor import colored
 
-from text_histogram import histogram
+# from text_histogram import histogram
 
 from datetime import datetime
 
@@ -38,18 +38,22 @@ if __name__ == '__main__':
 	for k, v in cache.items():
 		if k == '__filename__': continue
 		# import pdb; pdb.set_trace()
-		prompt = dict(k)['prompt']
-		completion = ''.join([_['text'] for _ in v['choices']])
-		s = prompt + completion
-		n_tokens = count_tokens(s)
-		date = datetime.fromtimestamp(v['created'])
-		kk = (date.year, date.month, date.day)
-		if kk not in usage:
-			usage[kk] = 0
-		usage[kk] += n_tokens
+		try:
+			prompt = dict(k)['prompt']
+			completion = ''.join([_['text'] for _ in v['choices']])
+			s = prompt + completion
+			n_tokens = count_tokens(s)
+			date = datetime.fromtimestamp(v['created'])
+			kk = (date.year, date.month, date.day)
+			if kk not in usage:
+				usage[kk] = 0
+			usage[kk] += n_tokens
+			total += n_tokens
 		# total += count_tokens(s)
 		# if 'P-H-A-N-T-O-M' in s:
 		# 	print(count_tokens(s))
+		except Exception as e:
+			print(e)
 	print(total)
 	cumu = 0
 	# last_date = 
