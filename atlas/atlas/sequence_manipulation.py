@@ -1,7 +1,6 @@
 
-# from .content import (
-# 	random_distinct_alpha_chars
-# )
+import logging; log = logging.getLogger(__name__)
+from termcolor import colored
 
 import pandas as pd
 
@@ -46,26 +45,31 @@ class RandomPermutationDataset(NondeterministicDataset):
 def main(argv):
 # argv = []
 # n_permutations = 5
-	n_train = 3
+	n_train = 100
 	n_test = 5
-	completion_kwargs = {}
+	completion_kwargs = {
+		'temperature': 0, 
+		'engine': 'davinci', 
+		'max_tokens': 20, 
+		# 'staged': True, 
+		'stop': '\n',
+		'logprobs': 100,
+		'echo': True,
+	}
 	mock = 'submit' not in argv
 	cache = read_cache()
 	gpt = GPT(cache, mock)
 
-	content = RandomDistinctAlphaCharsDataset(5)
-	order_dataset = RandomPermutationDataset(5)
-	# order = order_dataset[0]
-	# dataset = SumDataset([content, order_dataset])
-	content = FewShotDataset(content, n_train=n_train, n_test=n_test)
-	order_dataset = FuncDataset(order_dataset, funcs=[
+	content_dataset = RandomDistinctAlphaCharsDataset(5, offset=0)
+	order_dataset = RandomPermutationDataset(5, offset=1)
+	content = FewShotDataset(content_dataset, n_train=n_train, n_test=n_test)
+	order = FuncDataset(order_dataset, funcs=[
 		lambda x: [x for _ in range(n_train + 1)],
 	])
-	sample = SumDataset([content, order_dataset])
+	sample = SumDataset([content, order])
 	sample = FuncDataset(sample, funcs=[
 		lambda x: list(zip(*x)),
 	])
-
 	formatted = FormattingDataset(sample, 
 		lambda pair: space_separate(pair[0]), 
 		lambda pair: space_separate(permute(pair[0], pair[1])),
@@ -75,7 +79,7 @@ def main(argv):
 	y = FuncDataset(formatted, lambda _: _[-1][1])
 	prompt = InputOutputDataset(formatted)  # str
 	response = GPTDataset(prompt, gpt, completion_kwargs)
-	pred = FuncDataset(response, lambda _: get_completion_s(_, completion_kwargs))  # str
+	pred = FuncDataset(SumDataset([response, prompt]), lambda _: get_completion_s(_[0], completion_kwargs, _[1]))  # str
 	correct = FuncDataset(SumDataset([pred, y]), lambda _: _[0] == _[1] if _[0] is not None else None)  # Optional[bool]
 	ppl = FuncDataset(response, lambda _: get_ppl_s(_, completion_kwargs))  # str
 	# incorrect_indices = [i for i, val in enumerate(correct) if val == False]  # float
@@ -90,21 +94,20 @@ def main(argv):
 	# 	templates_by_name = list(map(lambda x1: list(map(lambda x2: list(map(lambda x3: x3[0], x2)), x1)), templates))
 	# 	return templates_by_name
 	# templates = FuncDataset(incorrect_indices, analyze_templates)
-	rows = SumDataset([x, pred, y, correct, ppl, prompt,], keys=['x', 'pred', 'y', 'correct', 'ppl', 'prompt',])
+	rows = SumDataset([x, pred, y, correct, ppl,], keys=['x', 'pred', 'y', 'correct', 'ppl',])
+	# rows = SumDataset([x, pred, y, correct, ppl, prompt,], keys=['x', 'pred', 'y', 'correct', 'ppl', 'prompt',])
 	_rows = [r for r in rows] # rows[:]?
 	# df = pd.DataFrame(_rows) # , columns=column_names)
 	# _templates = [None for _ in range(len(_rows))]
 	# for i, template in zip(incorrect_indices, templates):
 	# 	_templates[i] = template
 	# df = df.assign(templates=_templates)
-	# dataset = rows
+	# dataset = response
 	# for i, batch in enumerate(dataset):
 	# 	if i >= 5:
 	# 		break
 	# 	print(batch)
 	print(len(_rows))
 	print(_rows)
-
-
 
 

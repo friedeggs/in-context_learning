@@ -28,6 +28,7 @@ class Dataset(abc.ABC):
 		idx2 = self.max_splits * idx + self.split_ids[name]
 		return self[idx2]
 
+	@functools.lru_cache(maxsize=1024)
 	def __getitem__(self, idx):
 		if self.is_finite:
 			if idx >= len(self):
@@ -39,7 +40,6 @@ class Dataset(abc.ABC):
 		except Exception as e:
 			self.handle_error(e)
 
-	@functools.lru_cache(maxsize=1024)  # TODO check if is inherited 
 	@abc.abstractmethod
 	def getitem(self, idx):
 		pass
@@ -56,6 +56,7 @@ class FewShotDataset(Dataset):
 		self.n_test = n_test
 		self.same_train = same_train
 
+	@functools.lru_cache(maxsize=1024)
 	def getitem(self, idx):
 		if self.same_train:
 			r = range(self.n_train)
@@ -71,6 +72,7 @@ class ProductDataset(Dataset):
 		super(ProductDataset, self).__init__(**kwargs)
 		self.datasets = datasets
 
+	@functools.lru_cache(maxsize=1024)
 	def getitem(self, idx):
 		lens = list(map(len, self.datasets))
 		sample = []
@@ -89,6 +91,7 @@ class SumDataset(Dataset):
 		self.datasets = datasets
 		self.keys = keys
 
+	@functools.lru_cache(maxsize=1024)
 	def getitem(self, idx):
 		values = [ds[idx] for ds in self.datasets]
 		if self.keys is not None:
@@ -103,6 +106,7 @@ class IndexDataset(Dataset):
 		super(IndexDataset, self).__init__(**kwargs)
 		self.n = n
 
+	@functools.lru_cache(maxsize=1024)
 	def getitem(self, idx):
 		return idx
 
@@ -116,6 +120,7 @@ class ListDataset(Dataset):
 		super(ListDataset, self).__init__(**kwargs)
 		self.data = data
 
+	@functools.lru_cache(maxsize=1024)
 	def getitem(self, idx):
 		return self.data[idx]
 
@@ -134,6 +139,7 @@ class NondeterministicDataset(Dataset):
 		self.offset = offset
 		self.func = func
 
+	@functools.lru_cache(maxsize=1024)
 	def getitem(self, idx):
 		max_datasets = max(NondeterministicDataset.N_INT_DATASETS, NondeterministicDataset.max_datasets)
 		set_seed(max_datasets * idx + self.offset)
@@ -157,6 +163,7 @@ class FuncDataset(Dataset):
 			funcs = [funcs]
 		self.funcs = funcs
 
+	@functools.lru_cache(maxsize=1024)
 	def getitem(self, idx: Optional[int] = None, item = None):
 		item = item or self.dataset[idx]
 		for func in self.funcs:
@@ -174,6 +181,7 @@ class FormattingDataset(Dataset):
 		self.tgt_form = tgt_form
 		self.map = map
 
+	@functools.lru_cache(maxsize=1024)
 	def getitem(self, idx: Optional[int] = None, item = None):
 		item = item or self.dataset[idx]
 		fmt = lambda x: (self.src_form(x), self.tgt_form(x))
@@ -191,6 +199,7 @@ class InputOutputDataset(Dataset):
 			formatter: Optional[Callable] = None, 
 			include_y: bool = False,
 			intra_separator: str = ': ',
+			prefix: Optional[str] = None,
 			**kwargs):
 		super(InputOutputDataset, self).__init__(**kwargs)
 		self.dataset = dataset
@@ -199,14 +208,18 @@ class InputOutputDataset(Dataset):
 		self.formatter = formatter
 		self.include_y = include_y
 		self.intra_separator = intra_separator
+		self.prefix = prefix
 
+	@functools.lru_cache(maxsize=1024)
 	def getitem(self, idx: Optional[int] = None, item = None):
 		item = item or self.dataset[idx]  # List[Tuple[Any, Any]]
 		default_formatter = lambda tup: f'{self.x_label}{self.intra_separator}{tup[0]}\n{self.y_label}{self.intra_separator}{tup[1]}'
 		formatter = self.formatter or default_formatter
 		prompt = '\n'.join(list(map(formatter, item)))
 		if not self.include_y:
-			prompt = self.intra_separator.join(prompt.split(self.intra_separator)[:-1])
+			prompt = self.intra_separator.join(prompt.split(self.intra_separator)[:-1]) + self.intra_separator.rstrip()
+		if self.prefix is not None:
+			prompt = self.prefix + prompt
 		return prompt
 
 	def __len__(self):
@@ -219,6 +232,7 @@ class GPTDataset(Dataset):
 		self.gpt = gpt
 		self.completion_kwargs = completion_kwargs
 
+	@functools.lru_cache(maxsize=1024)
 	def getitem(self, idx: Optional[int] = None, item = None):
 		item = item or self.dataset[idx]  # str
 		return self.gpt.complete(item, self.completion_kwargs)
