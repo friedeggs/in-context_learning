@@ -30,6 +30,7 @@ def load_model():
 		vocab = tokenizer.get_vocab()
 
 def set_seed(seed: int = 0):
+	seed = seed % 2147483647 # seed must be <= 2**32-1 # largest prime under 2**31
 	random.seed(seed)
 	np.random.seed(seed)
 	# tf.random.set_seed(seed)
@@ -80,6 +81,9 @@ def repeat(lst, n):
 	['a', 'a', 'b', 'b', 'c', 'c']
 	"""
 	return [x for x in lst for _ in range(n)]
+
+def permute(lst, order):
+	return [lst[i] for i in order]
 
 def is_iterable(maybe_lst):
 	if isinstance(maybe_lst, str):

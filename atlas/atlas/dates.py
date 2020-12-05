@@ -2,37 +2,10 @@ import multiprocessing
 from tqdm import tqdm
 from typing import Any, Callable, Dict, List, Tuple, Optional
 
-from .dataset import Dataset, FewShotDataset, IndexDataset, IntDataset, ListDataset, SumDataset
+from .dataset import (
+	Dataset, FewShotDataset, FormattingDataset, FuncDataset, IndexDataset, IntDataset, SumDataset
+)
 # from .gpt import GPT, completion_kwargs  # TODO fake import
-
-class FuncDataset(Dataset):
-	def __init__(self, dataset, funcs: List[Callable], **kwargs):
-		super(FuncDataset, self).__init__(**kwargs)
-		self.dataset = dataset
-		self.funcs = funcs
-
-	def getitem(self, idx: Optional[int] = None, item = None):
-		item = item or self.dataset[idx]
-		for func in self.funcs:
-			item = func(item)
-		return item
-
-	def __len__(self):
-		return len(self.dataset)
-
-class FormattingDataset(Dataset):
-	def __init__(self, dataset, src_form: Callable, tgt_form: Callable, **kwargs):
-		super(FormattingDataset, self).__init__(**kwargs)
-		self.dataset = dataset
-		self.src_form = src_form
-		self.tgt_form = tgt_form
-
-	def getitem(self, idx: Optional[int] = None, item = None):
-		item = item or self.dataset[idx]
-		return (self.src_form(item), self.tgt_form(item))
-
-	def __len__(self):
-		return len(self.dataset)
 
 def create_date_dataset():
 	year = IntDataset(1970, 2020)

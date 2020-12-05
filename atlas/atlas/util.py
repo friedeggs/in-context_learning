@@ -2,6 +2,7 @@ from collections import OrderedDict
 import gzip
 import inspect
 import json
+import multiprocessing
 import numpy as np
 import os
 import random
@@ -29,6 +30,7 @@ def load_model():
 		vocab = tokenizer.get_vocab()
 
 def set_seed(seed: int = 0):
+	seed = seed % 2147483647 # seed must be <= 2**32-1 # largest prime under 2**31
 	random.seed(seed)
 	np.random.seed(seed)
 	# tf.random.set_seed(seed)
@@ -70,12 +72,18 @@ def escape_ansi(line): # Source: https://stackoverflow.com/a/38662876
 	ansi_escape = re.compile(r'(?:\x1B[@-_]|[\x80-\x9F])[0-?]*[ -/]*[@-~]')
 	return ansi_escape.sub('', line)
 
+def flatten(lst_of_lsts):
+	return [el for lst in lst_of_lsts for el in lst]
+
 def repeat(lst, n):
 	"""
 	>>> repeat(list('abc'), 2)
 	['a', 'a', 'b', 'b', 'c', 'c']
 	"""
 	return [x for x in lst for _ in range(n)]
+
+def permute(lst, order):
+	return [lst[i] for i in order]
 
 def is_iterable(maybe_lst):
 	if isinstance(maybe_lst, str):
@@ -86,6 +94,11 @@ def is_iterable(maybe_lst):
 		return False
 	else:
 		return True
+
+def to_tuple(x):
+    if is_iterable(x):
+        return tuple(map(to_tuple, x))
+    return x
 
 def get_type(funcname, attrname):
 	return inspect.signature(funcname).parameters[attrname].annotation
@@ -129,3 +142,13 @@ def get_tokenization(s):
 	tokens = autotokenizer.convert_ids_to_tokens(token_ids)
 	tokens = [bytearray([autotokenizer.byte_decoder[c] for c in tok]).decode("utf-8", errors=autotokenizer.errors) for tok in tokens]
 	return tokens
+
+def run_parallel(func, dataset, N_PARALLEL=8):
+	with multiprocessing.Pool(N_PARALLEL) as p:
+		list(tqdm(p.imap(func, dataset), total=len(dataset)))
+
+def plot_logprobs(logprobs):
+	xs = range(len(logprobs))
+	ys = logprobs
+
+

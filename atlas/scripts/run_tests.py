@@ -3,6 +3,7 @@ import sys, os
 sys.path.append('.')
 import atlas.test.test_dataset as t
 from atlas.dates import create_date_dataset, run
+from atlas.sequence_manipulation import main
 
 if __name__ == '__main__':
 	# t.test_product_dataset()
@@ -13,4 +14,5 @@ if __name__ == '__main__':
 	# 	if idx >= 5:
 	# 		break
 	# 	print(idx, el)
-	run()
+	# run()
+	main(sys.argv)

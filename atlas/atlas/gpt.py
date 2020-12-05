@@ -10,7 +10,7 @@ from termcolor import colored
 import time
 from tqdm import tqdm
 import traceback
-from typing import Any, Callable, Dict, List, Tuple, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import openai
 try:
@@ -20,20 +20,17 @@ try:
 except Exception:
     DRY_RUN = True
 
+from .api import (
+    get_completion_s,
+)
 from .util import dict_to_key
 
 DEFAULT_CACHE_PATH = 'cache.jsonl'
-
-HEADER_COLOR = 'magenta'
-RESPONSE_COLOR = 'red'
 
 DEFAULT_GENERATION_KWARGS = {
     'engine': 'davinci',
     'staged': True,
 }
-
-def make_header(s: Any):
-    return colored(f'===== {s}', HEADER_COLOR)
 
 def get_key(request):
     key = dict_to_key(request)
@@ -67,31 +64,45 @@ def write_cache(cache: Dict, filename: Optional[str] = None):
     #print(f"Wrote {len(cache)} cache entries")
 
 class GPT:
-    def __init__(self):
-        pass 
+    def __init__(self, cache, mock: bool = False):
+        self.cache = cache
+        self.mock = mock
 
     def make_query(self, **completion_kwargs) -> Optional[Dict]:
         key = get_key(completion_kwargs)
-        try:
-            response = openai.Completion.create(**completion_kwargs)
-            self.cache[key] = response
-            write_cache(self.cache)
-        except openai.error.InvalidRequestError as e:
-            traceback.print_exc()
-            response = None
-            raise Exception(e)
+        if key in self.cache:
+            response = self.cache[key]
+        else:
+            if self.mock:
+                response = None
+            else:
+                try:
+                    response = openai.Completion.create(**completion_kwargs)
+                    self.cache[key] = response
+                    write_cache(self.cache)
+                except openai.error.InvalidRequestError as e:
+                    response = None
+                    print(e)
+                    # traceback.print_exc()
+                    # raise Exception(e)
         return response
 
-    def complete(self, **completion_kwargs):
-        pass
+    def complete(self, prompt: str, return_response: bool = True, completion_kwargs: dict = {}):
+        response = self.make_query(prompt=prompt, **completion_kwargs)
+        if return_response:
+            return response
+        return get_completion_s(response, completion_kwargs)
 
-    def few_shot(self, **completion_kwargs):
-        pass
+    # def few_shot(self, train_examples, test_examples, return_response: bool = False, completion_kwargs):
+    #     prompt = 
+    #     response = self.complete(prompt, completion_kwargs)
+    #     if return_response:
+    #         return response
 
 def run():
     gpt = GPT()
     completion_kwargs = {}
-    response = gpt.complete(**completion_kwargs)
+    response = gpt.complete(completion_kwargs)
     response
 
 
