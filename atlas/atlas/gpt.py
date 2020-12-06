@@ -1,8 +1,13 @@
 from collections import defaultdict, OrderedDict
 import json
 from Levenshtein import distance as levenshtein
+import matplotlib
+matplotlib.use('tkAgg')
+from matplotlib import pyplot as plt
 import logging
-logging.basicConfig(level=logging.DEBUG,
+import logging.config
+# logging.config.dictConfig({'version': 1, 'disable_existing_loggers': True,})
+logging.basicConfig(level=logging.INFO,
     # format='%(asctime)s %(levelname)s %(module)s %(funcName)s %(message)s',
     format= '[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s',
     datefmt='%H:%M:%S',
@@ -25,6 +30,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import openai
 logging.getLogger('openai').setLevel(logging.WARNING)
+logging.getLogger('urllib3').setLevel(logging.WARNING)
 try:
     # https://beta.openai.com/api-ref
     openai.api_key = os.environ['API_KEY']  # type: ignore

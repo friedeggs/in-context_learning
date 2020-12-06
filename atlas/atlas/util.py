@@ -18,6 +18,10 @@ tokenizer = None
 autotokenizer = None
 vocab = None
 
+def fix(n):
+	"""For array indexing"""
+	return None if n == 0 else n
+
 def load_model():
 	from transformers import AutoTokenizer, GPT2LMHeadModel, GPT2TokenizerFast
 	global tokenizer, autotokenizer, vocab
