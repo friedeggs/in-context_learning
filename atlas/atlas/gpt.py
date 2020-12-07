@@ -42,7 +42,7 @@ except Exception:
 from .api import (
     get_completion_s,
 )
-from .util import dict_to_key
+from .util import make_immutable
 
 DEFAULT_CACHE_PATH = 'cache.jsonl'
 
@@ -52,7 +52,7 @@ DEFAULT_GENERATION_KWARGS = {
 }
 
 def get_key(request):
-    key = dict_to_key(request)
+    key = make_immutable(request)
     return key
 
 def read_cache(filename: str = DEFAULT_CACHE_PATH):

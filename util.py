@@ -2,6 +2,7 @@ from collections import OrderedDict
 import gzip
 import inspect
 import json
+import logging; log = logging.getLogger(__name__)
 import multiprocessing
 import numpy as np
 import os
@@ -17,6 +18,10 @@ MAX_INT = np.iinfo(np.int64).max
 tokenizer = None
 autotokenizer = None
 vocab = None
+
+def fix(n):
+	"""For array indexing"""
+	return None if n == 0 else n
 
 def load_model():
 	from transformers import AutoTokenizer, GPT2LMHeadModel, GPT2TokenizerFast
@@ -103,11 +108,11 @@ def to_tuple(x):
 def get_type(funcname, attrname):
 	return inspect.signature(funcname).parameters[attrname].annotation
 
-def dict_to_key(obj):
+def make_immutable(obj):
 	if isinstance(obj, dict):
-		return tuple(sorted(({k: dict_to_key(v) for k, v in obj.items()}).items()))
-	elif is_iterable(obj):
-		return tuple(obj)
+		return tuple(sorted(({k: make_immutable(v) for k, v in obj.items()}).items()))
+	elif isinstance(obj, (list, tuple)):
+		return tuple([make_immutable(x) for x in obj])
 	return obj
 
 def logsumexp(lst):
@@ -127,12 +132,12 @@ def show_tokenization(s, delimiter='|'):
 		s = [s]
 	texts = []
 	for _s in s:
-		token_ids = tokenizer.encode(_s)
-		tokens = tokenizer.convert_ids_to_tokens(token_ids)
-		if delimiter not in tokenizer.byte_decoder:
+		token_ids = autotokenizer.encode(_s)
+		tokens = autotokenizer.convert_ids_to_tokens(token_ids)
+		if delimiter not in autotokenizer.byte_decoder:
 			delimiter = chr(ord(' ') + 256)
 		text = delimiter.join(tokens)
-		text = bytearray([tokenizer.byte_decoder[c] for c in text]).decode("utf-8", errors=tokenizer.errors)
+		text = bytearray([autotokenizer.byte_decoder[c] for c in text]).decode("utf-8", errors=autotokenizer.errors)
 		texts.append(text)
 	return texts
 

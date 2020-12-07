@@ -1,11 +1,12 @@
 import sys, os
 import abc
 import functools
+import logging; log = logging.getLogger(__name__)
 import numpy as np
 import traceback
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-from .util import is_iterable, MAX_INT, set_seed
+from .util import make_immutable, is_iterable, MAX_INT, set_seed
 
 def handle_error(e):
 	# traceback.print_exc(sys.stderr)
@@ -49,12 +50,14 @@ class Dataset(abc.ABC):
 		pass
 
 class FewShotDataset(Dataset):
-	def __init__(self, dataset: Dataset, n_train: int, n_test: int, same_train: bool = False, **kwargs):
+	def __init__(self, dataset: Dataset, n_train: int, n_test: int, same_train: bool = False,
+			exclude_train_from_test: bool = False, **kwargs):
 		super(FewShotDataset, self).__init__(**kwargs)
 		self.dataset = dataset
 		self.n_train = n_train
 		self.n_test = n_test
 		self.same_train = same_train
+		self.exclude_train_from_test = exclude_train_from_test
 
 	@functools.lru_cache(maxsize=1024)
 	def getitem(self, idx):
@@ -62,6 +65,20 @@ class FewShotDataset(Dataset):
 			r = range(self.n_train)
 		else:
 			r = range(idx * self.n_train, (idx + 1) * self.n_train)
+		if self.exclude_train_from_test:
+			train_examples = [self.dataset.get_train(i) for i in r]
+			test_example = []
+			cntr = 0
+			while len(test_example) == 0 and cntr < min(len(self.dataset), 5 * self.n_train):  # TODO n_test not len(self.dataset)?
+				example = self.dataset.get_test(idx + cntr * 1_000_009)
+				if example not in train_examples:
+					test_example.append(example)
+				else:
+					log.debug('Skipping ' + str(example))
+				cntr += 1
+			if len(test_example) == 0:
+				raise Exception(f'Could not find a test example for index {idx}.')
+			return train_examples + test_example
 		return [self.dataset.get_train(i) for i in r] + [self.dataset.get_test(idx)]
 
 	def __len__(self):
@@ -239,3 +256,12 @@ class GPTDataset(Dataset):
 
 	def __len__(self):
 		return len(self.dataset)
+
+class IdentityDataset(Dataset):
+	@functools.lru_cache(maxsize=1024)
+	def getitem(self, idx):
+		return idx
+
+	def __len__(self):
+		return MAX_INT
+

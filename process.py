@@ -58,7 +58,7 @@ def make_header(s: Any):
 def get_key(request):
     if 'logit_bias' in request and isinstance(request['logit_bias'], list):
         request['logit_bias'] = {k: v for k, v in request['logit_bias']}
-    key = util.dict_to_key(request)
+    key = util.make_immutable(request)
     return key
 
 def read_cache(filename: str = DEFAULT_CACHE_PATH):
