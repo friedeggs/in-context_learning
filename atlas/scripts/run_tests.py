@@ -28,5 +28,20 @@ if __name__ == '__main__':
 	# setup_calendar_2x2_exception(sys.argv, n_train=10)
 	# setup_calendar_2x2_exception(sys.argv, n_train=60)
 	# setup_calendar_2x2_exception(sys.argv, n_train=35)
-	setup_calendar_2x2_exception(sys.argv, n_train=70, n_test=5, exclude_train_from_test=False)
-	setup_calendar_2x2_exception_dummy(sys.argv, n_train=70, n_test=5, exclude_train_from_test=False)
+	# setup_calendar_2x2_exception(sys.argv, n_train=70, n_test=5, exclude_train_from_test=False)
+	# setup_calendar_2x2_exception_dummy(sys.argv, n_train=70, n_test=5, exclude_train_from_test=False)
+	
+	# reverse(sys.argv, n=5, n_train=80, n_test=500)
+	# dates_unnatural_content(sys.argv, n_train=15, n_test=500)
+	# dates_natural_format(sys.argv, n_train=15, n_test=500)
+	dates(sys.argv, n_train=15, n_test=500)
+
+	# reverse(sys.argv, n=5, n_train=50, n_test=500)
+	reverse_natural_content(sys.argv, n=5, n_train=80, n_test=10)
+	reverse_to_natural_content(sys.argv, n=5, n_train=80, n_test=10)
+	dates_unnatural_content(sys.argv, n_train=10, n_test=500)
+	dates_natural_format(sys.argv, n_train=10, n_test=500)
+	dates(sys.argv, n_train=10, n_test=500)
+	addition_3_digit(sys.argv, n_train=100, n_test=500)
+	reverse_to_natural_content(sys.argv, n=5, n_train=80, n_test=100)
+

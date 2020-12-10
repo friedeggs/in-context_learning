@@ -13,8 +13,10 @@ import scipy.special
 from termcolor import colored
 import traceback
 
-import util
-from util import set_seed
+from .util import (
+	load_file,
+	set_seed,
+)
 
 Content = namedtuple('Content', 'function unnaturalness')
 Form = namedtuple('Form', 'function unnaturalness')
@@ -28,8 +30,6 @@ class Schema():
 			'src_form': src_forms,
 			'tgt_form': tgt_forms,
 		}
-
-
 
 def create_date_schema():
 	contents = {
@@ -75,8 +75,8 @@ def create_date_schema():
 	return DateSchema
 
 def create_name_schema():
-	first_names = util.load_file('data/common_first_names.txt')
-	last_names = util.load_file('data/common_last_names.txt')
+	first_names = load_file('data/common_first_names.txt')
+	last_names = load_file('data/common_last_names.txt')
 
 	contents = {
 		'firstName':

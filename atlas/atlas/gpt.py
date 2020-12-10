@@ -1,5 +1,6 @@
 from collections import defaultdict, OrderedDict
-import json
+import pickle
+import orjson as json
 from Levenshtein import distance as levenshtein
 import matplotlib
 matplotlib.use('tkAgg')
@@ -17,6 +18,7 @@ logging.basicConfig(level=logging.INFO,
 logging.addLevelName(logging.WARNING, "\033[1;31m%s\033[1;0m" % logging.getLevelName(logging.WARNING))
 logging.addLevelName(logging.ERROR, "\033[1;41m%s\033[1;0m" % logging.getLevelName(logging.ERROR))
 log = logging.getLogger(__name__)
+import multiprocessing
 import numpy as np
 import os
 import random
@@ -42,7 +44,12 @@ except Exception:
 from .api import (
     get_completion_s,
 )
-from .util import make_immutable
+from .util import (
+    count_tokens,
+    line_count,
+    make_immutable,
+    run_parallel,
+)
 
 DEFAULT_CACHE_PATH = 'cache.jsonl'
 
@@ -51,34 +58,78 @@ DEFAULT_GENERATION_KWARGS = {
     'staged': True,
 }
 
+gpt = [None, None]
+CACHE = defaultdict(lambda: None)
+
 def get_key(request):
     key = make_immutable(request)
     return key
 
 def read_cache(filename: str = DEFAULT_CACHE_PATH):
+    log.info('Reading cache %s' % filename)
     cache = OrderedDict()
     if os.path.exists(filename):
-        for line in open(filename):
-            try:
-                item = json.loads(line)
-                cache[get_key(item['request'])] = item['response']
-            except Exception:
-                pass
-    #print(f"Read {len(cache)} cache entries")
+        if filename.endswith('.pkl'):
+            with open(filename, 'rb') as f:
+                s = time.time()
+                cache = pickle.loads(f)
+                log.info(time.time() - s)
+        else:
+            error_msg = None
+            with open(filename) as f:
+                n_lines = line_count(filename)
+                for _, line in zip(tqdm(range(n_lines)), open(filename)):
+                    try:
+                        item = json.loads(line)
+                        cache[get_key(item['request'])] = item['response']
+                    except Exception:
+                        try:
+                            item = json.loads(eval(line).decode())
+                            cache[get_key(item['request'])] = item['response']
+                        except Exception as e:
+                            error_msg = e
+                            pass
+                        pass
+            if error_msg is not None:
+                log.error('Encountered exception {e} while reading {filename}')
+            if len(cache) == 0:
+                import pdb; pdb.set_trace()
+    log.info(f"Read {len(cache)} cache entries")
     cache['__filename__'] = filename
     return cache
 
 def write_cache(cache: Dict, filename: Optional[str] = None):
+    log.info('Writing cache')
+    filename = filename or cache.get('__filename__') or DEFAULT_CACHE_PATH
+    s = signal.signal(signal.SIGINT, signal.SIG_IGN) # TODO turn back on
+    if filename.endswith('.pkl'):
+        with open(filename, 'wb') as f:
+            s = time.time()
+            pickle.dump(cache, f)
+            log.info(time.time() - s)
+    else:
+        with open(filename, 'w') as f:
+            for _, (key, value) in zip(tqdm(range(len(cache)), desc='Writing cache'), cache.items()):
+                _key = key if isinstance(key, str) else dict(key)
+                item = {
+                    'request': _key,
+                    'response': value,
+                }
+                print(str(json.dumps(item), "utf-8"), file=f)
+    signal.signal(signal.SIGINT, s)
+    log.info(f"Wrote {len(cache)} cache entries")
+
+def append_cache(cache: Dict, key, filename: Optional[str] = None):
     filename = cache.get('__filename__') or filename or DEFAULT_CACHE_PATH
     s = signal.signal(signal.SIGINT, signal.SIG_IGN)
-    with open(filename, 'w') as f:
-        for key, value in cache.items():
-            _key = key if isinstance(key, str) else dict(key)
-            item = {
-                'request': _key,
-                'response': value,
-            }
-            print(json.dumps(item), file=f)
+    with open(filename, 'a') as f:
+        _key = key if isinstance(key, str) else dict(key)
+        value = cache[key]
+        item = {
+            'request': _key,
+            'response': value,
+        }
+        print(str(json.dumps(item), "utf-8"), file=f)
     signal.signal(signal.SIGINT, s)
     #print(f"Wrote {len(cache)} cache entries")
 
@@ -91,25 +142,106 @@ class GPT:
         else:
             log.warn('Using real GPT')
 
+        self.clear_staged_queries()
+
     def make_query(self, **completion_kwargs) -> Optional[Dict]:
         key = get_key(completion_kwargs)
-        if key in self.cache:
-            response = self.cache[key]
+        _key = get_key({k: v for k, v in completion_kwargs.items() if k != 'staged'})
+        if _key in self.cache:
+            # log.debug('Cache hit')
+            response = self.cache[_key]
+        elif 'staged' in completion_kwargs and completion_kwargs['staged']:
+            self.cache[key] = response = None
         else:
+            if 'staged' in completion_kwargs:
+                del completion_kwargs['staged']
             # print(completion_kwargs)
             if self.mock:
                 response = None
             else:
                 try:
                     response = openai.Completion.create(**completion_kwargs)
-                    self.cache[key] = response
-                    write_cache(self.cache)
+                    self.cache[_key] = response
+                    append_cache(self.cache, _key)
                 except openai.error.InvalidRequestError as e:
                     response = None
-                    print(e)
+                    log.info(e)
                     # traceback.print_exc()
                     # raise Exception(e)
         return response
+
+    def get_staged_queries(self):
+        return {key: value for key, value in self.cache.items() if key != '__filename__' and ('staged', True) in key}
+
+    def clear_staged_queries(self):
+        staged = self.get_staged_queries()
+        if not staged:
+            return
+        for key in staged.keys():
+            del self.cache[key]
+        write_cache(self.cache)
+
+    def calculate_cost(self):
+        staged = self.get_staged_queries()
+        total = 0
+        # for _, (key, value) in zip(tqdm(staged), staged.items()):
+        for (key, value) in staged.items():
+            kwargs = defaultdict(int, key)
+            total += count_tokens(kwargs['prompt']) + kwargs['max_tokens']
+        return total
+
+    def _run_staged_query(self, item):
+        key, value = item
+        kwargs = dict(key)
+        del kwargs['staged']
+        _ = self.make_query(**kwargs)
+
+    def run_staged_queries_parallel(self): # TODO test
+        staged = self.get_staged_queries()
+        run_parallel(self._run_staged_query, staged.items())
+        for key in staged.keys():
+            del self.cache[key]
+        # write_cache(self.cache)
+
+    def run_staged_queries(self, k = None):
+        staged = self.get_staged_queries()
+        if not staged:
+            return
+        while k not in list('ynqc'):
+            k = input(f"Submit {len(staged)} staged request(s) to the server? [y/n/q/c] ")
+        if k not in list('yc'):
+            return
+        cntr = 0
+        for _, (key, value) in zip(tqdm(staged), staged.items()):
+            if cntr > 0:
+                cntr -= 1
+                # if cntr > 0 and cntr % 5 == 0:
+                #     print('%d staged requests left to skip' % cntr)
+                continue
+            _key = [el for el in key if el[0] != 'prompt']
+            # log.info(str(_key))
+            kwargs = dict(key)
+            del kwargs['staged']
+            # print(kwargs['prompt'][-200:])
+            if k == 'c':
+                k2 = 'x'
+                while k2[0] not in list('ynqs'):
+                    k2 = input("Submit this staged request to the server? [y/n/q/s <num>] ")
+                if k2 == 'q':
+                    return 
+                if k2 == 'n':
+                    continue
+                if k2[0] == 's':
+                    cntr = int(k2[2:])
+                    print('Skipping %d staged requests' % cntr)
+            response = self.make_query(**kwargs)
+            # if response is not None and response['choices']:
+            #     for choice in response['choices']:
+            #         print(colored(choice['text'], 'yellow'))
+            #         self.print_logprobs(choice)
+        for key in staged.keys():
+            del self.cache[key]
+        # write_cache(self.cache)
 
     def complete(self, prompt: str, completion_kwargs: dict = {}, return_response: bool = True):
         response = self.make_query(prompt=prompt, **completion_kwargs)
@@ -122,6 +254,13 @@ class GPT:
     #     response = self.complete(prompt, completion_kwargs)
     #     if return_response:
     #         return response
+
+def get_cache(filename: str = DEFAULT_CACHE_PATH):
+    log.info('Getting cache %s' % filename)
+    global CACHE
+    if CACHE[filename] is None:
+        CACHE[filename] = read_cache(filename)
+    return CACHE[filename]
 
 def run():
     gpt = GPT()

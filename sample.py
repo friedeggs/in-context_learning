@@ -529,7 +529,7 @@ def run_perplexity_investigation(gpt3, engine, schema_type, n_train=5, n_test=10
 		}
 		evaluate(gpt3, sm[:n_train], sm[n_train:], additional_kwargs=additional_kwargs, **kwargs)
 
-def run_perplexity_investigation_sampled_train(gpt3, engine, schema_type, n_train=5, n_test=1000, **kwargs):
+def run_perplexity_investigation_sampled_train(gpt3, engine, schema_type, n_train=5, n_test=1000, tgt_form_type=4, **kwargs):
 	default_kwargs = {
 		'temperature': 0, 
 		'prefix': None, 
@@ -550,7 +550,7 @@ def run_perplexity_investigation_sampled_train(gpt3, engine, schema_type, n_trai
 	# n_test = 1000 # 100 # 10 # 5
 
 	poss_fc = [
-		(FormPair(0, 4), schema_type(*([0] * len(schema_type._fields))))
+		(FormPair(0, tgt_form_type), schema_type(*([0] * len(schema_type._fields))))
 	]
 	# poss_fc = list(cartesian_product(
 	# 	exactly_k_unnatural(schema_type, 'forms'), 

@@ -94,3 +94,7 @@ def get_top_tokens_s(response, completion_kwargs, prompt: Optional[str] = None, 
 	if len(tlps) == 1:
 		tlps = tlps[0]
 	return tlps
+
+# def 
+
+

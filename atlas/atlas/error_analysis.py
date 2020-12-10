@@ -1,25 +1,53 @@
 import calendar
 from collections import defaultdict
 import copy
+import logging; log = logging.getLogger(__name__)
 import numpy as np
 import regex
 from termcolor import colored
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 
-from sample import (
-	load_df,
-	save_df,
-)
-from schemas import (
+# from sample import (
+# 	load_df,
+# 	save_df,
+# )
+from .schema import (
 	create_date_schema,
 	sample,
 	FormPair,
 )
-
-from util import flatten, set_seed
+from .util import (
+	flatten,
+	set_seed,
+)
 
 DateSchema = create_date_schema()
+
+def get_form_primitives(content, tgt_forms: List[Callable]):
+	forbidden = {
+		'': 'XXXXXXXXX',
+		'str': 'XXXXXXXXX',
+		'str_': 'XXXXXXXXX', # numpy
+		'int': 9675278978,
+		'int8': 9675278978,
+		'int16': 9675278978,
+		'int32': 9675278978,
+		'int64': 9675278978,
+	} # TODO make sure unused
+	types = [type(c).__name__ for c in content]
+	# log.info(types)
+	dummy_content = [forbidden[t] for t in types]
+	form_primitives = []
+	for tgt_form in tgt_forms:
+		dummy_formatted = tgt_form(dummy_content)
+		for v in set(forbidden.values()):
+			dummy_formatted = forbidden[''].join(dummy_formatted.split(str(v)))
+		cur_form_primitives = list(set(dummy_formatted.split(str(forbidden['']))))
+		cur_form_primitives = list(filter(lambda x: x, cur_form_primitives))
+		form_primitives.extend(cur_form_primitives)
+	form_primitives_dict = {f'fp{i}': fp for i, fp in enumerate(form_primitives)}
+	return form_primitives_dict
 
 def get_value_dict(content, tgt_forms: List[Callable]):
 	t = type(content)
@@ -27,13 +55,14 @@ def get_value_dict(content, tgt_forms: List[Callable]):
 	dummy_content = t(*([forbidden] * len(content._fields)))
 	form_primitives = []
 	for tgt_form in tgt_forms:
-		cur_form_primitives = list(set(tgt_form.function(dummy_content).split(str(forbidden))))
+		cur_form_primitives = list(set(tgt_form(dummy_content).split(str(forbidden))))
 		cur_form_primitives = list(filter(lambda x: x, cur_form_primitives))
 		form_primitives.extend(cur_form_primitives)
 	value_dict = {
 		**{f: getattr(content, f) for f in content._fields},
 		**{f'fp{i}': fp for i, fp in enumerate(form_primitives)},
-		**{'2-digit': r'\d\d',},
+		**{'<2-digit>': r'\d\d',},
+		**{'<5-digit>': r'\d\d\d\d\d',},
 	}
 	value_dict = add_neighbors(value_dict)
 	return value_dict
@@ -66,9 +95,15 @@ def add_neighbors(base_value_dict):
 			new_value_dict[f'{k}_plus-one_not-fmt02d'] = str(v+1)
 
 		if k == 'month_name':
-			new_value_dict['month'] = list(calendar.month_abbr).index(v)
+			try:
+				new_value_dict['month'] = list(calendar.month_abbr).index(v)
+			except Exception:
+				pass
 		if k == 'month':
-			new_value_dict['month_name'] = calendar.month_abbr[v]
+			try:
+				new_value_dict['month_name'] = calendar.month_abbr[v]
+			except Exception:
+				pass
 
 		if k == 'year':
 			new_value_dict['year_2:4'] = str(v)[2:4]
@@ -106,7 +141,8 @@ def match_templates(output_text, value_dict):
 		for match in regex.finditer(str(pattern), output_text, overlapped=True):
 			start_idx = match.span()[0]
 			matched = match.group()
-			if pattern == r'\d\d' and matched in value_dict.values():
+			# if pattern == r'\d\d' and matched in value_dict.values():
+			if [name[0], name[-1]] == list('<>') and matched in value_dict.values():  # regex
 				continue
 			matches[start_idx+len(matched)][name] = matched
 	# print(matches)
@@ -264,6 +300,7 @@ def filter_templates(templates, fp0):
 	return templates
 
 def analyze_errors(df, filename):
+	from sample import save_df
 	date_schema = create_date_schema()
 	schema_type = date_schema
 	errors = []
@@ -291,6 +328,7 @@ def analyze_errors(df, filename):
 	df = save_df(filename, df)
 
 def run_error_analysis():
+	from sample import load_df
 	df = load_df()
 	analyze_errors(df[(df.engine == 'davinci') & (df.num_examples == 5) & (df.rel != 'EQUALS')], filename='results_error_analysis_templates.csv')
 	analyze_errors(df[(df.engine == 'ada') & (df.num_examples == 15) & (df.rel != 'EQUALS')], filename='results_error_analysis_templates.csv')

@@ -97,7 +97,8 @@ def main(argv):
 	# run_perplexity_investigation_sampled_train(gpt3, 'ada', date_schema, n_train=100, n_test=100, max_tokens=20)
 	# run_perplexity_investigation_sampled_train(gpt3, 'babbage', date_schema, n_train=15, n_test=1000, max_tokens=20)
 	# run_perplexity_investigation_sampled_train(gpt3, 'curie', date_schema, n_train=5, n_test=1000, max_tokens=20)
-	run_perplexity_investigation_sampled_train(gpt3, 'curie', date_schema, n_train=10, n_test=1000, max_tokens=20)
+	# run_perplexity_investigation_sampled_train(gpt3, 'curie', date_schema, n_train=10, n_test=1000, max_tokens=20)
+	run_perplexity_investigation_sampled_train(gpt3, 'davinci', date_schema, n_train=10, n_test=1000, max_tokens=20)
 
 	save_df()
 	print('This request will cost %d tokens' % gpt3.calculate_cost())

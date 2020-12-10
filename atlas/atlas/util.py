@@ -8,6 +8,7 @@ import numpy as np
 import os
 import random
 import re
+import subprocess
 import sys
 from termcolor import colored
 from tqdm import tqdm
@@ -28,8 +29,10 @@ def load_model():
 	global tokenizer, autotokenizer, vocab
 	model_id = 'gpt2'
 	if tokenizer is None:
+		log.info('Loading tokenizer')
 		tokenizer = GPT2TokenizerFast.from_pretrained(model_id)
 	if autotokenizer is None:
+		log.info('Loading autotokenizer')
 		autotokenizer = AutoTokenizer.from_pretrained(model_id)
 	if vocab is None:
 		vocab = tokenizer.get_vocab()
@@ -148,9 +151,13 @@ def get_tokenization(s):
 	tokens = [bytearray([autotokenizer.byte_decoder[c] for c in tok]).decode("utf-8", errors=autotokenizer.errors) for tok in tokens]
 	return tokens
 
-def run_parallel(func, dataset, N_PARALLEL=8):
+def run_parallel(func, xs, N_PARALLEL=8):
 	with multiprocessing.Pool(N_PARALLEL) as p:
-		list(tqdm(p.imap(func, dataset), total=len(dataset)))
+		result = list(tqdm(p.imap(func, xs), total=len(xs), desc=func.__name__))
+	return result
+
+def line_count(filename):
+    return int(subprocess.check_output(['wc', '-l', filename]).split()[0])
 
 def plot_logprobs(logprobs):
 	xs = range(len(logprobs))

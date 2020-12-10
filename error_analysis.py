@@ -40,7 +40,7 @@ def get_value_dict(content, tgt_forms: List[Callable]):
 
 def get_templates(content, tgt_form):
 	output_text = tgt_form.function(content)
-	value_dict = get_value_dict(content, tgt_form)
+	value_dict = get_value_dict(content, [tgt_form.function])
 	templates = match_templates(output_text, value_dict)
 	return templates
 
@@ -237,12 +237,12 @@ def test_end_to_end():
 	# # gt_template = ['!', 'month', '!', 'day', '!', 'year', '!']
 	# gt_template = ['fp0', 'month_fmt02d', 'fp0', 'day_fmt02d', 'fp0', 'year', 'fp0']
 	# print_templates(templates, gt_template, output_text)
-	value_dict = get_value_dict(content, tgt_form_func)
+	value_dict = get_value_dict(content, [tgt_form_func.function])
 	for idx, form in schema_type.forms['tgt_form'].items():
 		if idx != 4:
 			continue
 		# form = schema_type.forms['tgt_form'][2]
-		value_dict = get_value_dict(content, form)
+		value_dict = get_value_dict(content, [form.function])
 		text = form.function(content)
 		templates = match_templates(text, value_dict)
 		templates = filter_templates(templates, 'fp0')
@@ -270,7 +270,7 @@ def analyze_errors(df, filename):
 	for row in df.itertuples():
 		content = eval(row.content)
 		tgt_form_func = schema_type.forms['tgt_form'][4]
-		value_dict = get_value_dict(content, tgt_form_func)
+		value_dict = get_value_dict(content, [tgt_form_func.function])
 		# text = form.function(content)
 		x = row.x
 		text = row.pred
