@@ -6,6 +6,7 @@ import numpy as np
 import traceback
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+from .form_lib import io_format
 from .util import make_immutable, is_iterable, MAX_INT, set_seed
 
 def handle_error(e):
@@ -217,6 +218,7 @@ class InputOutputDataset(Dataset):
 			include_y: bool = False,
 			intra_separator: str = ': ',
 			prefix: Optional[str] = None,
+			transform: Callable = lambda x: x,
 			**kwargs):
 		super(InputOutputDataset, self).__init__(**kwargs)
 		self.dataset = dataset
@@ -226,18 +228,16 @@ class InputOutputDataset(Dataset):
 		self.include_y = include_y
 		self.intra_separator = intra_separator
 		self.prefix = prefix
+		self.transform = transform
 
 	@functools.lru_cache(maxsize=1024)
 	def getitem(self, idx: Optional[int] = None, item = None):
 		item = item or self.dataset[idx]  # List[Tuple[Any, Any]]
-		default_formatter = lambda tup: f'{self.x_label}{self.intra_separator}{tup[0]}\n{self.y_label}{self.intra_separator}{tup[1]}'
-		formatter = self.formatter or default_formatter
-		prompt = '\n'.join(list(map(formatter, item)))
-		if not self.include_y:
-			prompt = self.intra_separator.join(prompt.split(self.intra_separator)[:-1]) + self.intra_separator.rstrip()
-		if self.prefix is not None:
-			prompt = self.prefix + prompt
-		return prompt
+		return io_format(item, 
+			x_label=self.x_label, y_label=self.y_label, 
+			formatter=self.formatter, include_y=self.include_y, 
+			intra_separator=self.intra_separator, 
+			prefix=self.prefix, transform=self.transform)
 
 	def __len__(self):
 		return len(self.dataset)

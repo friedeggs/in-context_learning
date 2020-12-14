@@ -55,7 +55,16 @@ def get_top_logprobs(choice, completion_kwargs, prompt: Optional[str] = None, co
 			s += choice['logprobs']['tokens'][start_idx]
 			start_idx += 1
 		lps = lps[start_idx:]
-	end_idx = choice['logprobs']['tokens'][::-1].index('\n')  # TODO doesn't work for '\n' with other whitespace; assumes one '\n'
+	end_idx = 0
+	if 'stop' in completion_kwargs:
+		tokens = completion_kwargs['stop']
+		if isinstance(tokens, str):
+			tokens = [tokens]
+		for token in tokens:
+			try:
+				end_idx = max(end_idx, choice['logprobs']['tokens'][::-1].index(token))  # TODO doesn't work for '\n' with other whitespace; assumes one '\n'
+			except (IndexError, ValueError):
+				pass
 	lps = lps[:fix(-end_idx)]
 	if keys is not None:
 		lps = [defaultdict(lambda: -np.inf, lp) for lp in lps]

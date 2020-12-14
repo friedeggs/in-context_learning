@@ -1,13 +1,16 @@
+import sys, os
 from collections import defaultdict, OrderedDict
+import abc
 import pickle
 import orjson as json
 from Levenshtein import distance as levenshtein
 import matplotlib
-matplotlib.use('tkAgg')
+matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 import logging
 import logging.config
 # logging.config.dictConfig({'version': 1, 'disable_existing_loggers': True,})
+os.system('mkdir -p outputs') # TODO
 logging.basicConfig(level=logging.INFO,
     # format='%(asctime)s %(levelname)s %(module)s %(funcName)s %(message)s',
     format= '[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s',
@@ -43,6 +46,7 @@ except Exception:
 
 from .api import (
     get_completion_s,
+    get_ppl,
 )
 from .util import (
     count_tokens,
@@ -53,13 +57,18 @@ from .util import (
 
 DEFAULT_CACHE_PATH = 'cache.jsonl'
 
+HEADER_COLOR = 'magenta'
+RESPONSE_COLOR = 'red'
+
 DEFAULT_GENERATION_KWARGS = {
     'engine': 'davinci',
     'staged': True,
 }
 
-gpt = [None, None]
 CACHE = defaultdict(lambda: None)
+
+def make_header(s: Any):
+    return colored(f'===== {s}', HEADER_COLOR)
 
 def get_key(request):
     key = make_immutable(request)
@@ -92,8 +101,8 @@ def read_cache(filename: str = DEFAULT_CACHE_PATH):
                         pass
             if error_msg is not None:
                 log.error('Encountered exception {e} while reading {filename}')
-            if len(cache) == 0:
-                import pdb; pdb.set_trace()
+            # if len(cache) == 0:
+            #     import pdb; pdb.set_trace()
     log.info(f"Read {len(cache)} cache entries")
     cache['__filename__'] = filename
     return cache
@@ -131,9 +140,9 @@ def append_cache(cache: Dict, key, filename: Optional[str] = None):
         }
         print(str(json.dumps(item), "utf-8"), file=f)
     signal.signal(signal.SIGINT, s)
-    #print(f"Wrote {len(cache)} cache entries")
+    # print(f"Appended 1 entry to cache")
 
-class GPT:
+class GPT(abc.ABC):
     def __init__(self, cache, mock: bool = False):
         self.cache = cache
         self.mock = mock
@@ -144,10 +153,15 @@ class GPT:
 
         self.clear_staged_queries()
 
+    @abc.abstractmethod
+    def create_completion(self, **completion_kwargs) -> Dict:
+        response = openai.Completion.create(**completion_kwargs)
+        return response
+
     def make_query(self, **completion_kwargs) -> Optional[Dict]:
         key = get_key(completion_kwargs)
         _key = get_key({k: v for k, v in completion_kwargs.items() if k != 'staged'})
-        if _key in self.cache:
+        if _key in self.cache: 
             # log.debug('Cache hit')
             response = self.cache[_key]
         elif 'staged' in completion_kwargs and completion_kwargs['staged']:
@@ -155,19 +169,18 @@ class GPT:
         else:
             if 'staged' in completion_kwargs:
                 del completion_kwargs['staged']
-            # print(completion_kwargs)
-            if self.mock:
-                response = None
-            else:
+            response = None
+            if not self.mock:
                 try:
-                    response = openai.Completion.create(**completion_kwargs)
+                    response = self.create_completion(**completion_kwargs)
                     self.cache[_key] = response
                     append_cache(self.cache, _key)
                 except openai.error.InvalidRequestError as e:
-                    response = None
-                    log.info(e)
+                    log.warn(e)
                     # traceback.print_exc()
                     # raise Exception(e)
+                except Exception as e:
+                    log.error(e)
         return response
 
     def get_staged_queries(self):
@@ -243,7 +256,7 @@ class GPT:
             del self.cache[key]
         # write_cache(self.cache)
 
-    def complete(self, prompt: str, completion_kwargs: dict = {}, return_response: bool = True):
+    def complete(self, prompt: str, completion_kwargs: Dict = {}, return_response: bool = True):
         response = self.make_query(prompt=prompt, **completion_kwargs)
         if return_response:
             return response
@@ -254,6 +267,15 @@ class GPT:
     #     response = self.complete(prompt, completion_kwargs)
     #     if return_response:
     #         return response
+
+    def ppl(self, prompt, completion_kwargs: Dict = {}, completion_only: bool = True, prefix: Optional[str] = None):
+        response = self.complete(prompt, completion_kwargs)
+        choice = response['choices'][0]
+        # log.info('prompt: %s' % prompt)
+        # log.info('completion: %s' % get_completion_s(response, completion_kwargs, prompt=prompt))
+        prefix = prefix or prompt # TODO hacky
+        ppl = get_ppl(choice, completion_kwargs, prefix, completion_only)
+        return ppl
 
 def get_cache(filename: str = DEFAULT_CACHE_PATH):
     log.info('Getting cache %s' % filename)

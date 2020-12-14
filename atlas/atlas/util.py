@@ -11,6 +11,7 @@ import re
 import subprocess
 import sys
 from termcolor import colored
+import torch
 from tqdm import tqdm
 from typing import Any, Callable, Dict, List, Tuple, Optional
 
@@ -42,7 +43,7 @@ def set_seed(seed: int = 0):
 	random.seed(seed)
 	np.random.seed(seed)
 	# tf.random.set_seed(seed)
-	# torch.manual_seed(seed)
+	torch.manual_seed(seed)
 
 def write_to_file(filename, s):
 	with open(filename, 'w') as f:
@@ -118,9 +119,22 @@ def make_immutable(obj):
 		return tuple([make_immutable(x) for x in obj])
 	return obj
 
+def jsonify(obj):
+	if isinstance(obj, dict):
+		return {k: jsonify(v) for k, v in obj.items()}
+	elif isinstance(obj, tuple):
+		return tuple([jsonify(x) for x in obj])
+	elif isinstance(obj, list):
+		return list([jsonify(x) for x in obj])
+	elif isinstance(obj, torch.Tensor):
+		return obj.numpy().tolist()
+	elif isinstance(obj, np.ndarray):
+		return obj.tolist()
+	return obj
+
 def logsumexp(lst):
 	"""
-	>>> np.exp(reduce_func([np.log(.5), np.log(.3)]))
+	>>> np.exp(logsumexp([np.log(.5), np.log(.3)]))
 	0.8
 	"""
 	return np.log(sum(map(np.exp, lst)))
@@ -144,9 +158,10 @@ def show_tokenization(s, delimiter='|'):
 		texts.append(text)
 	return texts
 
-def get_tokenization(s):
+def get_tokenization(s=None, token_ids=None):
 	load_model()
-	token_ids = autotokenizer.encode(s)
+	if token_ids is None:
+		token_ids = autotokenizer.encode(s)
 	tokens = autotokenizer.convert_ids_to_tokens(token_ids)
 	tokens = [bytearray([autotokenizer.byte_decoder[c] for c in tok]).decode("utf-8", errors=autotokenizer.errors) for tok in tokens]
 	return tokens
@@ -159,8 +174,32 @@ def run_parallel(func, xs, N_PARALLEL=8):
 def line_count(filename):
     return int(subprocess.check_output(['wc', '-l', filename]).split()[0])
 
-def plot_logprobs(logprobs):
-	xs = range(len(logprobs))
-	ys = logprobs
+def upto(s, substr):
+	if isinstance(s, str):
+		lst = s.split(substr)
+		if len(lst) == 1:
+			return s
+		return lst[0] + substr
+	if isinstance(s, list):
+		try:
+			idx = s.index(substr)
+			return s[:idx+1]
+		except ValueError:
+			s
 
+def moving_average(x, w):
+    return np.convolve(x, np.ones(w), 'valid') / w
+
+def plot(xs, ys, output_file: Optional[str] = None, sz: int = 15, func: Optional[Callable] = None, scatter_kwargs: Dict = {}):
+	import matplotlib
+	matplotlib.use('Agg')
+	from matplotlib import pyplot as plt
+	_ = plt.figure(figsize=(sz, sz))
+	plt.scatter(x=xs, y=ys, **scatter_kwargs)
+	if func is not None:
+		func(locals())
+	if output_file is not None:
+		plt.savefig(output_file)
+	# plt.clf()
+	# plt.close('all')
 
