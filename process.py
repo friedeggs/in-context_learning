@@ -253,7 +253,7 @@ class GPT3:
                     extra = ''
                 if verbose:
                     print(f'[{len(examples)} examples] {x} -> {colored(predicted_y, RESPONSE_COLOR)}{extra}')
-                    self.print_logprobs(choice)
+                    # self.print_logprobs(choice)
         retval = [response, rel]
         if return_kwargs:
             retval.append(kwargs)

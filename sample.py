@@ -410,6 +410,7 @@ def evaluate(gpt3, train_samples=None, test_samples=None, train_examples=None, t
 		# del row['prompt']
 		rows.append(row)
 	# save_df()
+	print(score)
 	return score
 
 def run_schema_task(gpt3, engine, schema_type, **kwargs):

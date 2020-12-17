@@ -100,7 +100,7 @@ def read_cache(filename: str = DEFAULT_CACHE_PATH):
                             pass
                         pass
             if error_msg is not None:
-                log.error('Encountered exception {e} while reading {filename}')
+                log.error(f'Encountered exception {error_msg} while reading {filename}')
             # if len(cache) == 0:
             #     import pdb; pdb.set_trace()
     log.info(f"Read {len(cache)} cache entries")
@@ -278,7 +278,7 @@ class GPT(abc.ABC):
         return ppl
 
 def get_cache(filename: str = DEFAULT_CACHE_PATH):
-    log.info('Getting cache %s' % filename)
+    log.debug('Getting cache %s' % filename)
     global CACHE
     if CACHE[filename] is None:
         CACHE[filename] = read_cache(filename)

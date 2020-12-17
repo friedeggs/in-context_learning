@@ -2,7 +2,7 @@ import sys, os
 from collections import defaultdict, OrderedDict
 import logging; log = logging.getLogger(__name__)
 import matplotlib
-matplotlib.use('tkAgg')
+matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 import numpy as np

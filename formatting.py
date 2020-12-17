@@ -133,9 +133,9 @@ def _run_helper(gpt3, engine, train_examples, test_examples, formatter=None, **k
 		row['score'] = (rel == 'EQUALS')
 		rows.append(row)
 
-	# print(colored('Engine: %s' % engine, 'magenta'))
-	# print(colored('Score: %d/%d (%d close, %d contains); %d pending' % (score, total, close, contains, pending), 'magenta'))
-	# print('')
+	print(colored('Engine: %s' % engine, 'magenta'))
+	print(colored('Score: %d/%d (%d close, %d contains); %d pending' % (score, total, close, contains, pending), 'magenta'))
+	print('')
 
 
 	df = pd.DataFrame(rows) # , columns=column_names)
@@ -1384,27 +1384,27 @@ def run_unnatural_addition(gpt3, engine, sep1=' + ', sep2=' = ', n_train=50, n_t
 		a, b = np.random.randint(0, 100, 2)
 		ans = op(a, b)
 		examples.append(('%d%s%d' % (a, sep1, b), f'{ans}'))
-	# _run_helper(gpt3, engine, examples[:n_train], examples[n_train:], max_tokens=max_tokens, formatter=formatter, **kwargs)
-	kwargs = {
-		'engine': engine, 
-		'formatter': formatter,
-		'max_tokens': max_tokens,
-	}
-	kwargs = {**DEFAULT_KWARGS, **kwargs}
-	additional_kwargs = {
-		'task': 'unnatural_addition',
-		'schema_type': 'arithmetic',
-		# 'a': a,
-		# 'b': b,
-		'sep1': sep1,
-		'sep2': sep2,
-	}
-	evaluate(gpt3, 
-		train_examples=examples[:n_train], 
-		test_examples=examples[n_train:], 
-		additional_kwargs=additional_kwargs, 
-		**kwargs
-	)
+	_run_helper(gpt3, engine, examples[:n_train], examples[n_train:], max_tokens=max_tokens, formatter=formatter, **kwargs)
+	# kwargs = {
+	# 	'engine': engine, 
+	# 	'formatter': formatter,
+	# 	'max_tokens': max_tokens,
+	# }
+	# kwargs = {**DEFAULT_KWARGS, **kwargs}
+	# additional_kwargs = {
+	# 	'task': 'unnatural_addition',
+	# 	'schema_type': 'arithmetic',
+	# 	# 'a': a,
+	# 	# 'b': b,
+	# 	'sep1': sep1,
+	# 	'sep2': sep2,
+	# }
+	# evaluate(gpt3, 
+	# 	train_examples=examples[:n_train], 
+	# 	test_examples=examples[n_train:], 
+	# 	additional_kwargs=additional_kwargs, 
+	# 	**kwargs
+	# )
 
 def run_arithmetic_in_words(gpt3, engine, sep1=' + ', sep2=' = ', n_train=50, n_test=1, max_tokens=10, op=add, **kwargs):
 	set_seed()
@@ -1420,23 +1420,23 @@ def run_arithmetic_in_words(gpt3, engine, sep1=' + ', sep2=' = ', n_train=50, n_
 		ans = num2words(ans)
 		examples.append((f'{a}{sep1}{b}', ans))
 
-	# _run_helper(gpt3, engine, examples[:n_train], examples[n_train:], max_tokens=max_tokens, formatter=formatter, **kwargs)
-	kwargs = {
-		'engine': engine, 
-		'formatter': formatter,
-		'max_tokens': max_tokens,
-	}
-	kwargs = {**DEFAULT_KWARGS, **kwargs}
-	additional_kwargs = {
-		'task': 'arithmetic_in_words',
-		'schema_type': 'arithmetic',
-	}
-	evaluate(gpt3, 
-		train_examples=examples[:n_train], 
-		test_examples=examples[n_train:], 
-		additional_kwargs=additional_kwargs, 
-		**kwargs
-	)
+	_run_helper(gpt3, engine, examples[:n_train], examples[n_train:], max_tokens=max_tokens, formatter=formatter, **kwargs)
+	# kwargs = {
+	# 	'engine': engine, 
+	# 	'formatter': formatter,
+	# 	'max_tokens': max_tokens,
+	# }
+	# kwargs = {**DEFAULT_KWARGS, **kwargs}
+	# additional_kwargs = {
+	# 	'task': 'arithmetic_in_words',
+	# 	'schema_type': 'arithmetic',
+	# }
+	# evaluate(gpt3, 
+	# 	train_examples=examples[:n_train], 
+	# 	test_examples=examples[n_train:], 
+	# 	additional_kwargs=additional_kwargs, 
+	# 	**kwargs
+	# )
 
 """
 from formatting import load_df
@@ -1551,14 +1551,14 @@ def main(argv):
 		# (run_unnatural_addition, [], {'logprobs': 100, 'sep1': ' * '}),
 		# (run_unnatural_addition, [], {'logprobs': 100, 'n_train': 100, 'n_test': 2, 'sep1': ' * '}),
 		# (run_arithmetic_in_words, [], {'logprobs': 100, 'n_train': 100}),
-		# (run_arithmetic_in_words, [], {'logprobs': 100, 'n_train': 100, 'sep1': ' - '}),
+		(run_arithmetic_in_words, [], {'logprobs': 100, 'n_train': 100, 'sep1': ' - '}),
 		# (run_arithmetic_in_words, [], {'logprobs': 100, 'n_train': 100, 'sep1': ', ', 'sep2': ', '}),
-		# (run_arithmetic_in_words, [], {'logprobs': 100, 'n_train': 100, 'sep1': ', ', 'sep2': ' -> '}),
-		# (run_unnatural_addition, [], {'logprobs': 100, 'n_test': 50, 'sep1': ' - ', 'sep2': ' = '}),
-		# (run_arithmetic_in_words, [], {'logprobs': 100, 'n_train': 100, 'n_test': 50, 'sep1': ', ', 'sep2': ', '}),
-		(run_remove_nonalphanumeric_distinct, [], {'logprobs': 100, 'n_train': 15, 'n_test': 5, 'n_kinds': 3}),
-		(run_remove_nonalphanumeric_distinct, [], {'logprobs': 100, 'n_train': 100, 'n_test': 5, 'n_kinds': 3, 'separator': ' '}),
-		(run_remove_nonalphanumeric_distinct, [], {'logprobs': 100, 'echo': True, 'n_train': 100, 'n_test': 5, 'n_kinds': 3, 'separator': ' '}),
+		(run_arithmetic_in_words, [], {'logprobs': 100, 'n_train': 100, 'sep1': ', ', 'sep2': ' -> '}),
+		(run_unnatural_addition, [], {'logprobs': 100, 'n_test': 50, 'sep1': ' - ', 'sep2': ' = '}),
+		(run_arithmetic_in_words, [], {'logprobs': 100, 'n_train': 100, 'n_test': 50, 'sep1': ', ', 'sep2': ', '}),
+		# (run_remove_nonalphanumeric_distinct, [], {'logprobs': 100, 'n_train': 15, 'n_test': 5, 'n_kinds': 3}),
+		# (run_remove_nonalphanumeric_distinct, [], {'logprobs': 100, 'n_train': 100, 'n_test': 5, 'n_kinds': 3, 'separator': ' '}),
+		# (run_remove_nonalphanumeric_distinct, [], {'logprobs': 100, 'echo': True, 'n_train': 100, 'n_test': 5, 'n_kinds': 3, 'separator': ' '}),
 	]
 	# for engine in ['ada', 'babbage', 'curie', 'davinci']:
 	# for engine in ['babbage', 'curie', 'davinci']:
