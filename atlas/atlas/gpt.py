@@ -74,7 +74,7 @@ def get_key(request):
     key = make_immutable(request)
     return key
 
-def read_cache(filename: str = DEFAULT_CACHE_PATH):
+def read_cache(filename: str = DEFAULT_CACHE_PATH, n_lines: Optional[int] = None):
     log.info('Reading cache %s' % filename)
     cache = OrderedDict()
     if os.path.exists(filename):
@@ -86,7 +86,7 @@ def read_cache(filename: str = DEFAULT_CACHE_PATH):
         else:
             error_msg = None
             with open(filename) as f:
-                n_lines = line_count(filename)
+                n_lines = n_lines or line_count(filename)
                 for _, line in zip(tqdm(range(n_lines)), open(filename)):
                     try:
                         item = json.loads(line)
@@ -155,8 +155,7 @@ class GPT(abc.ABC):
 
     @abc.abstractmethod
     def create_completion(self, **completion_kwargs) -> Dict:
-        response = openai.Completion.create(**completion_kwargs)
-        return response
+        raise NotImplementedError
 
     def make_query(self, **completion_kwargs) -> Optional[Dict]:
         key = get_key(completion_kwargs)
@@ -235,7 +234,7 @@ class GPT(abc.ABC):
             # log.info(str(_key))
             kwargs = dict(key)
             del kwargs['staged']
-            # print(kwargs['prompt'][-200:])
+            # log.info(kwargs['prompt']) # [-200:])
             if k == 'c':
                 k2 = 'x'
                 while k2[0] not in list('ynqs'):
@@ -277,11 +276,16 @@ class GPT(abc.ABC):
         ppl = get_ppl(choice, completion_kwargs, prefix, completion_only)
         return ppl
 
-def get_cache(filename: str = DEFAULT_CACHE_PATH):
+class GPT3(GPT):
+    def create_completion(self, **completion_kwargs) -> Dict:
+        response = openai.Completion.create(**completion_kwargs)
+        return response
+
+def get_cache(filename: str = DEFAULT_CACHE_PATH, n_lines: Optional[int] = None):
     log.debug('Getting cache %s' % filename)
     global CACHE
     if CACHE[filename] is None:
-        CACHE[filename] = read_cache(filename)
+        CACHE[filename] = read_cache(filename, n_lines)
     return CACHE[filename]
 
 def run():

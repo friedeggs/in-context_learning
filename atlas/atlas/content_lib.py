@@ -11,6 +11,9 @@ from .util import (
 def random_distinct_alpha_chars(n):
 	return np.random.choice(list('abcdefghijklmnopqrstuvwxyz'), n, replace=False)
 
+def random_distinct_chars(n):
+	return np.random.choice(list('abcdefgh'), n, replace=False)
+
 def random_permutation(n):
 	return np.random.permutation(n)
 

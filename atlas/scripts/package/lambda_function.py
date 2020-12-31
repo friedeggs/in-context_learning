@@ -9,7 +9,7 @@ Tests:
 """
 import sys, os
 from dateutil.parser import parse as dateparse
-from datetime import datetime
+from datetime import datetime, timedelta
 import base64
 import functools
 import json
@@ -18,6 +18,7 @@ import requests
 import shlex
 import subprocess
 from termcolor import colored
+from threading import Thread
 import traceback
 from urllib import parse as urlparse
 API_KEY = os.environ.get('API_KEY', None)
@@ -46,6 +47,9 @@ def query_usage(**kwargs):
     if 'user_id' in kwargs:
         params.append(('user_id', kwargs['user_id']))
     response = requests.get('https://api.openai.com/v1/usage', params=params, auth=('', kwargs['API_KEY'])).json()
+    return process_response(response, **kwargs)
+
+def process_response(response, **kwargs):
     if kwargs['verbose']:
         print(colored(response, 'green'))
     if kwargs['return_keys'] is not None:
@@ -53,22 +57,7 @@ def query_usage(**kwargs):
         #     response = response[kwargs['return_keys'][0]]
         # else:
         #     response = {k: response[k] for k in kwargs['return_keys']}
-        result = {}
-        for k in kwargs['return_keys']:
-            is_top_level = k in response
-            # if not is_top_level and k not in response['data']:
-            #     raise KeyError
-            if is_top_level:
-                value = response[k]
-            else:
-                value = 0.
-                for obj in response['data']:
-                    date = datetime.fromtimestamp(obj['aggregation_timestamp'])
-                    if kwargs['start_date'] < date < kwargs['end_date']:
-                        value += obj[k]
-            result[k] = value
-        if len(kwargs['return_keys']) == 1:
-            result = list(result.values())[0]
+        result = tally_value(response, kwargs['return_keys'], kwargs['start_date'], kwargs['end_date'])
     else:
         result = response
     return result
@@ -114,7 +103,7 @@ More information: <https://gist.github.com/schnerd/2a7f1fd085feb997e049f9e8bef30
     }
     return response
 
-def fetch_helper(input_text, key_str='Total token usage', **kwargs):
+def fetch_helper(input_text, key_str='Total token usage', immediate=True, **kwargs):
     kwargs = {**get_default_kwargs(), **kwargs}
     for key in ['start_date', 'end_date', 'date', 'user_id']:
         splits = input_text.split(f'--{key}')
@@ -131,7 +120,30 @@ def fetch_helper(input_text, key_str='Total token usage', **kwargs):
     for k, v in kwargs.items():
         if 'date' in k and isinstance(v, str):
             kwargs[k] = dateparse(v)
-    value = query_usage(**kwargs)
+    response = query_usage(**{**kwargs, **{'return_keys': None}})
+    aggregate = False
+    if 'return_keys' in kwargs and kwargs['return_keys']:
+        for k in kwargs['return_keys']:
+            if response['data'] and k in response['data'][0]:
+                aggregate = True
+    else:
+        aggregate = True
+    # print(kwargs['return_keys'])
+    # print(response[])
+    # print(aggregate)
+    if not immediate and aggregate and 'date' not in kwargs and 'start_date' in kwargs:
+        date = kwargs['start_date']
+        response = None
+        while date <= kwargs['end_date']:
+            res = query_usage(date=date, **{**kwargs, **{'return_keys': None}})
+            if response is None:
+                response = res
+            else:
+                response['data'].extend(res['data'])
+            date += timedelta(days=1)
+        value = process_response(response, **kwargs)
+    else:
+        value = process_response(response, **kwargs)
     if kwargs['return_keys'] is None:
         return value
     return_key = kwargs['return_keys'][0]
@@ -149,6 +161,10 @@ def fetch_helper(input_text, key_str='Total token usage', **kwargs):
         was = 'is'
     else:
         was = 'was'
+    # if immediate:
+    #     immediate_str = ' based on a straightforward query'
+    # else:
+    immediate_str = ''
     closing = random.choices([
         'Happy experimenting!',
         # ':dog:',
@@ -156,7 +172,7 @@ def fetch_helper(input_text, key_str='Total token usage', **kwargs):
         ':paw_prints:',
         '',
     ], weights=[9,1,1,9])[0] 
-    text = f"""{key_str}{interval_text} {was} *{value}*. {closing}"""
+    text = f"""{key_str}{interval_text}{immediate_str} {was} *{value}*. {closing}"""
     response = {
         "response_type": "in_channel",
         "text": text,
@@ -165,40 +181,47 @@ def fetch_helper(input_text, key_str='Total token usage', **kwargs):
 
 @register_command('u')
 # @functools.lru_cache(maxsize=1024)
-def usage(input_text):
-    return fetch_helper(input_text)
+def usage(input_text, **kwargs):
+    return fetch_helper(input_text, **kwargs)
 
 @register_command('t')
 # @functools.lru_cache(maxsize=1024)
-def total(input_text):
+def total(input_text, **kwargs):
     key = 'credits_used'
-    return fetch_helper(input_text, return_keys=[key], key_str='Total overall usage')
+    return fetch_helper(input_text, return_keys=[key], key_str='Total overall usage', **kwargs)
 
 @register_command('r')
 # @functools.lru_cache(maxsize=1024)
-def response(input_text):
+def response(input_text, **kwargs):
     key = input_text
-    response = fetch_helper(input_text, return_keys=None, key_str=f'`{key}`')
+    response = fetch_helper(input_text, return_keys=None, key_str=f'`{key}`', **kwargs)
     response_str = json.dumps(response, indent=4, sort_keys=True)
-    response = {
-        "response_type": "in_channel",
-        "blocks": [
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"""```{response_str}```""",
+    if len(response_str) <= 2500:
+        response = {
+            "response_type": "in_channel",
+            # "text": str(response_str),
+            "blocks": [
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"""```{response_str}```""",
+                    }
                 }
-            }
-        ]
-    }
+            ]
+        }
+    else:
+        response = {
+            "response_type": "in_channel",
+            "text": response_str,
+        }
     return response
 
 @register_command('f')
 # @functools.lru_cache(maxsize=1024)
-def fetch(input_text):
+def fetch(input_text, **kwargs):
     key = input_text.split(' ')[0]
-    return fetch_helper(input_text, return_keys=[key], key_str=f'`{key}`')
+    return fetch_helper(input_text, return_keys=[key], key_str=f'`{key}`', **kwargs)
 
 @register_command('w')
 # @functools.lru_cache(maxsize=1024)
@@ -209,13 +232,29 @@ def woof(input_text):
     }
     return response
 
-def lambda_handler(event, context):
-    msg_map = dict(urlparse.parse_qsl(base64.b64decode(str(event['body'])).decode('ascii')))  # data comes b64 and also urlencoded name=value& pairs
-    command = msg_map.get('command','err')  # /lassie
-    params = msg_map.get('text','err')
-    subcommand = params.split(' ')[0].replace('-','')
-    subparams = ' '.join(params.split(' ')[1:])
+@register_command()
+# @functools.lru_cache(maxsize=1024)
+def come_home(input_text):
+    response = {
+        "response_type": "in_channel",
+        "text": ":party-corgi:",
+    }
+    return response
+
+@register_command('c')
+# @functools.lru_cache(maxsize=1024)
+def come(input_text):
+    if input_text == "home":
+        response = {
+            "response_type": "in_channel",
+            "text": ":party-corgi:",
+        }
+        return response
+    raise Exception
+
+def get_slack_response(command, params, subcommand, subparams):
     try:
+        print(f'Processing {params}')
         return COMMANDS_DICT[subcommand](subparams)
     except Exception as e:
         err_msg = traceback.format_exc()
@@ -235,28 +274,106 @@ def lambda_handler(event, context):
         }
         return response
 
+def post_slack_response(command, params, subcommand, subparams):
+    response = get_slack_response(command, params, subcommand, subparams)
+    post_response(response)
+
+def lambda_handler(event, context):
+    msg_map = dict(urlparse.parse_qsl(base64.b64decode(str(event['body'])).decode('ascii')))  # data comes b64 and also urlencoded name=value& pairs
+    command = msg_map.get('command','err')  # /lassie
+    params = msg_map.get('text','err')
+    subcommand = params.split(' ')[0].replace('-','')
+    subparams = ' '.join(params.split(' ')[1:])
+    # processing_msg = {
+    #     "response_type": "ephemeral",
+    #     "blocks": [
+    #         {
+    #             "type": "section",
+    #             "text": {
+    #                 "type": "mrkdwn",
+    #                 "text": "Fetching...",
+    #             }
+    #         }
+    #     ]
+    # }
+    # thr = Thread(target=post_slack_response, args=[command, params, subcommand, subparams])
+    # thr.start()
+    # return processing_msg
+    return get_slack_response(command, params, subcommand, subparams)
+
 def run_test():
     print(usage('from Oct 2 to Dec 12'))
     print(usage('--date Dec 9 --user-id=user-6eSBXZTbx20mZQY0gHvxsNrb'))
     print(fetch('credit_quota'))
     print(fetch('data'))
 
-# TOKEN = 'xoxb-22410191972-1565794522807-bcfF2Zu3ilJteR8fCVIms2vx'
-TOKEN = 'xoxb-11601076693-1585876756643-T0pGgjyfU9kpafzpUOfvtefo'
+DEV = False
+if DEV:
+    TOKEN = 'xoxb-22410191972-1565794522807-bcfF2Zu3ilJteR8fCVIms2vx' # lassie-dev
+else:
+    TOKEN = 'xoxb-11601076693-1585876756643-T0pGgjyfU9kpafzpUOfvtefo' # lassie
 
 def post_response(response):
     from slack_sdk import WebClient
     client = WebClient(token=TOKEN)
     kwargs = {k: v for k, v in response.items() if k != 'response_type'}
-    kwargs['channel'] = '#gpt3-api' # '#random'
+    if DEV:
+        kwargs['channel'] = '#random'
+    else:
+        kwargs['channel'] = '#gpt3-api' # '#random'
     if response['response_type'] == 'ephemeral':
         res = client.chat_postEphemeral(**kwargs)
     else:
         res = client.chat_postMessage(**kwargs)
     return res
 
+def tally_value(response, return_keys, start_date, end_date):
+    # response_str = json.dumps(response, indent=4, sort_keys=True)
+    # print(response_str)
+    result = {}
+    for k in return_keys:
+        is_top_level = k in response
+        # if not is_top_level and k not in response['data']:
+        #     raise KeyError
+        if is_top_level:
+            value = response[k]
+        else:
+            value = 0.
+            for obj in response['data']:
+                # if 'free' in obj['snapshot_id']:
+                #     print(obj['snapshot_id'])
+                #     print(obj['n_credits_total'])
+                #     continue
+                date = datetime.fromtimestamp(obj['aggregation_timestamp'])
+                if start_date < date < end_date:
+                    value += obj[k]
+        result[k] = value
+    if len(return_keys) == 1:
+        result = list(result.values())[0]
+    return result
+
 if __name__ == '__main__':
     API_KEY = sys.argv[1]
-    res = total('')
+    # res = total('')
+    # kwargs = get_default_kwargs()
+    # res = response(f'--date={kwargs['end_date'].strftime('%Y-%m-%d')}')
+    # res = tally_value(res, kwargs['return_keys'], kwargs['start_date'], kwargs['end_date'])
+    
+    # kwargs = get_default_kwargs()
+    # date = kwargs['start_date']
+    # # date = datetime.today().strftime('%Y-%m-%d')
+    # tot = 0
+    # while date <= kwargs['end_date']:
+    #     res = usage(f'--date={date}')
+    #     count = int(res['text'].split('was ')[-1].split(' tokens')[0].replace('*',''))
+    #     print(count)
+    #     tot += count
+    #     date += timedelta(days=1)
+    # print('---')
+    # print(tot)
+
+    res = usage('') # , immediate=False)
     post_response(res)
+    # thr = Thread(target=post_slack_response, args=["/lassie", "usage", "usage", ""])
+    # thr.start()
    

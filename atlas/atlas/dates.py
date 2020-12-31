@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, List, Tuple, Optional
 from .dataset import (
 	Dataset, FewShotDataset, FormattingDataset, FuncDataset, IndexDataset, IntDataset, SumDataset
 )
-# from .gpt import GPT, completion_kwargs  # TODO fake import
+# from .gpt import GPT3, completion_kwargs  # TODO fake import
 
 def create_date_dataset():
 	year = IntDataset(1970, 2020)
@@ -71,7 +71,7 @@ def run_parallel(func, dataset, N_PARALLEL=8):
 		list(tqdm(p.imap(func, dataset), total=len(dataset)))
 
 def run():
-	# gpt = GPT()
+	# gpt = GPT3()
 	indexer, dataset = create_date_dataset()
 	# dates = dataset.dataset.dataset
 	# form = dataset.dataset

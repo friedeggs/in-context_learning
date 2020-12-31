@@ -1559,6 +1559,7 @@ def main(argv):
 		# (run_remove_nonalphanumeric_distinct, [], {'logprobs': 100, 'n_train': 15, 'n_test': 5, 'n_kinds': 3}),
 		# (run_remove_nonalphanumeric_distinct, [], {'logprobs': 100, 'n_train': 100, 'n_test': 5, 'n_kinds': 3, 'separator': ' '}),
 		# (run_remove_nonalphanumeric_distinct, [], {'logprobs': 100, 'echo': True, 'n_train': 100, 'n_test': 5, 'n_kinds': 3, 'separator': ' '}),
+		(run_arithmetic_in_words, [], {'logprobs': 100, 'n_train': 100, 'n_test': 50, 'sep1': ', ', 'sep2': ', '}),
 	]
 	# for engine in ['ada', 'babbage', 'curie', 'davinci']:
 	# for engine in ['babbage', 'curie', 'davinci']:

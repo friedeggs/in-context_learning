@@ -13,7 +13,7 @@ import traceback
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from .content_lib import (
-	random_distinct_alpha_chars,
+	random_distinct_chars,
 	random_permutation,
 	random_word_length_5,
 )
@@ -32,9 +32,6 @@ from .util import (
 	plot,
 	moving_average,
 )
-
-def random_distinct_chars(n):
-	return np.random.choice(list('abcdefgh'), n, replace=False)
 
 def vanilla_metropolis_hastings(t: int, x, T: Callable, Teval: Optional[Callable], p: Callable, return_prob=False):
 	xprime = T(x)

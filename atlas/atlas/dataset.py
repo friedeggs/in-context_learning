@@ -217,6 +217,7 @@ class InputOutputDataset(Dataset):
 			formatter: Optional[Callable] = None, 
 			include_y: bool = False,
 			intra_separator: str = ': ',
+			x_y_separator: str = '\n',
 			prefix: Optional[str] = None,
 			transform: Callable = lambda x: x,
 			**kwargs):
@@ -227,6 +228,7 @@ class InputOutputDataset(Dataset):
 		self.formatter = formatter
 		self.include_y = include_y
 		self.intra_separator = intra_separator
+		self.x_y_separator = x_y_separator
 		self.prefix = prefix
 		self.transform = transform
 
@@ -237,6 +239,7 @@ class InputOutputDataset(Dataset):
 			x_label=self.x_label, y_label=self.y_label, 
 			formatter=self.formatter, include_y=self.include_y, 
 			intra_separator=self.intra_separator, 
+			x_y_separator=self.x_y_separator, 
 			prefix=self.prefix, transform=self.transform)
 
 	def __len__(self):

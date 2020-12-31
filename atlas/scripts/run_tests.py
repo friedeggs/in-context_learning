@@ -17,6 +17,7 @@ from atlas.sequence_manipulation import permutations, reverse, dates, random_cha
 from atlas.sequence_manipulation import *
 from atlas.smarter_search import run_smarter_search, run_random_search, plot_searches, run_chained_search, run_importance_sampling
 from atlas.util import set_seed
+from atlas.identity import run_queries
 
 if __name__ == '__main__':
 	# t.test_product_dataset()
@@ -54,6 +55,10 @@ if __name__ == '__main__':
 	# dates_unnatural_content(sys.argv, n_train=10, n_test=500)
 	# dates_natural_format(sys.argv, n_train=10, n_test=500)
 	# dates(sys.argv, n_train=10, n_test=500)
+	# dates_unnatural_content_3_digit(sys.argv, n_train=15, n_test=1)
+	# unnatural_addition_2_digit(sys.argv, n_train=50, n_test=2000, sep1=' - ')
+	# unnatural_addition_2_digit(sys.argv, n_train=50, n_test=2000, sep1=' - ', prefix='Instead of subtracting the two numbers given, add them.\n')
+	unnatural_addition_2_digit_qa(sys.argv, n_train=5, n_test=100, sep1=' - ', prefix='Instead of subtracting the two numbers given, add them.\n\n')
 	# addition_3_digit(sys.argv, n_train=100, n_test=500)
 	# reverse_to_natural_content(sys.argv, n=5, n_train=80, n_test=100)
 	# xs = []
@@ -83,17 +88,17 @@ if __name__ == '__main__':
 	# plot_searches(sys.argv, n_train=2, T=80000, engine='gpt2')
 
 	# engine = 'gpt2-large'
-	for n_train in range(2,11):
-		for source_engine, target_engine in [('gpt2', 'gpt2-medium'), ('gpt2-medium', 'gpt2-large'), ('gpt2', 'gpt2-large')]:
-			log.info(colored(f'===== n_train={n_train} source_engine={source_engine} target_engine={target_engine}', 'magenta'))
+	# for n_train in range(2,11):
+	# 	for source_engine, target_engine in [('gpt2', 'gpt2-medium'), ('gpt2-medium', 'gpt2-large'), ('gpt2', 'gpt2-large')]:
+	# 		log.info(colored(f'===== n_train={n_train} source_engine={source_engine} target_engine={target_engine}', 'magenta'))
 
-			set_seed()
-			run_random_search(sys.argv, n_train=n_train, T=500, engine=target_engine)
-			# set_seed()
-			# run_smarter_search(sys.argv, n_train=2, T=500, engine=engine)
-			set_seed()
-			run_importance_sampling(sys.argv, n_train=n_train, T=500, source_engine=source_engine, target_engine=target_engine)
-			print('')
+	# 		set_seed()
+	# 		run_random_search(sys.argv, n_train=n_train, T=500, engine=target_engine)
+	# 		# set_seed()
+	# 		# run_smarter_search(sys.argv, n_train=2, T=500, engine=engine)
+	# 		set_seed()
+	# 		run_importance_sampling(sys.argv, n_train=n_train, T=500, source_engine=source_engine, target_engine=target_engine)
+	# 		print('')
 
 	# set_seed()
 	# run_random_search(sys.argv, n_train=5, T=200, engine='gpt2-large')
@@ -176,4 +181,4 @@ if __name__ == '__main__':
 	# 			log.info(df)
 	# 			log.info(f'Wrote {len(df)} rows to ../outputs/compare_search.csv')
 
-
+	# run_queries(sys.argv)
