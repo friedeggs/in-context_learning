@@ -42,7 +42,7 @@ def query_usage(**kwargs):
     else:
         params = [
             ('start_date', kwargs['start_date'].strftime('%Y-%m-%d')),
-            ('end_date', kwargs['end_date'].strftime('%Y-%m-%d')),
+            ('end_date', (kwargs['end_date'] + timedelta(days=1)).strftime('%Y-%m-%d')), # inclusive
         ]
     if 'user_id' in kwargs:
         params.append(('user_id', kwargs['user_id']))
@@ -148,13 +148,15 @@ def fetch_helper(input_text, key_str='Total token usage', immediate=True, **kwar
         return value
     return_key = kwargs['return_keys'][0]
     if 'usd' in return_key:
-        value = f'${value} USD'
+        value = f'${value:,.2f} USD'
     elif return_key in ['data', 'n_requests', 'n_context', 'n_generated']:
-        value = str(int(value))
+        value = f'{int(value):,}'
     else:
-        value = f'{int(value)} tokens'
+        value = f'{int(value):,} tokens'
     if 'quota' in return_key or 'granted' in return_key or return_key == 'credits_used':
         interval_text = ''
+    elif 'date' in kwargs:
+        interval_text = f""" on {kwargs['date'].strftime('%b %-d, %Y')}"""
     else:
         interval_text = f""" from {kwargs['start_date'].strftime('%b %-d, %Y')} to {kwargs['end_date'].strftime('%b %-d, %Y')}"""
     if return_key == 'credits_used':
@@ -308,13 +310,13 @@ def run_test():
     print(fetch('data'))
 
 DEV = False
-if DEV:
-    TOKEN = 'xoxb-22410191972-1565794522807-bcfF2Zu3ilJteR8fCVIms2vx' # lassie-dev
-else:
-    TOKEN = 'xoxb-11601076693-1585876756643-T0pGgjyfU9kpafzpUOfvtefo' # lassie
 
 def post_response(response):
     from slack_sdk import WebClient
+    if DEV:
+        TOKEN = 'xoxb-22410191972-1565794522807-bcfF2Zu3ilJteR8fCVIms2vx' # lassie-dev
+    else:
+        TOKEN = 'xoxb-11601076693-1585876756643-T0pGgjyfU9kpafzpUOfvtefo' # lassie
     client = WebClient(token=TOKEN)
     kwargs = {k: v for k, v in response.items() if k != 'response_type'}
     if DEV:
@@ -354,6 +356,7 @@ def tally_value(response, return_keys, start_date, end_date):
 
 if __name__ == '__main__':
     API_KEY = sys.argv[1]
+    DEV = len(sys.argv) > 2
     # res = total('')
     # kwargs = get_default_kwargs()
     # res = response(f'--date={kwargs['end_date'].strftime('%Y-%m-%d')}')
@@ -372,8 +375,14 @@ if __name__ == '__main__':
     # print('---')
     # print(tot)
 
-    res = usage('') # , immediate=False)
+    if DEV:
+        res = usage('', immediate=False)
+    else:
+        res = usage('')
     post_response(res)
+
+    # res = usage('') # , immediate=False)
+    # post_response(res)
     # thr = Thread(target=post_slack_response, args=["/lassie", "usage", "usage", ""])
     # thr.start()
    

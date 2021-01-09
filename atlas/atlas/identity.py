@@ -75,7 +75,7 @@ from .sequence_manipulation import (
 
 def run_queries(argv):
 	completion_kwargs = {
-		'staged': False,
+		'staged': True,
 		# 'staged': True, 
 		'temperature': 0, 
 		'engine': 'davinci', 
@@ -92,7 +92,12 @@ def run_queries(argv):
 	total = int(scipy.special.comb(8, n_chars) * math.factorial(n_chars))
 	# token cost is 24 * (n_train + 1) - 1
 	# 23, 47, 71, 95
-	for n_train in range(1,2): # 6):
+	transform_func = str_separate(', ')
+	fmt_func = lambda _: io_format(_, transform=transform_func, include_y=True)
+	# fmt_func = lambda _: io_format(_, x_label='', y_label='', intra_separator='', transform=transform_func, include_y=True)
+	# fmt_func_x = lambda _: io_format(_, x_label='', y_label='', intra_separator='', transform=transform_func, include_y=False)
+	
+	for n_train in [3]: # range(10,11): # 6):
 		# for comb in itertools.combinations('abcd', 3):
 		pbar = tqdm(total=total)
 		cntr = 0
@@ -103,22 +108,23 @@ def run_queries(argv):
 				content = np.tile(np.concatenate(
 					[random_distinct_chars((1, 1, n_chars))
 					 for _ in range(n_train)] + [np.array(perm).reshape(1, 1, n_chars)]), (1,2,1))
-				transform_func = str_separate(', ')
-				fmt_func = lambda _: io_format(_, x_label='', y_label='', intra_separator='', transform=transform_func, include_y=True)
-				# fmt_func_x = lambda _: io_format(_, x_label='', y_label='', intra_separator='', transform=transform_func, include_y=False)
-				prompt = fmt_func(content)
-				# prompt_x = fmt_func_x(content)
-				y = transform_func(perm)
-				prompt_x = prompt[:-(len(y)+1)]
-				response = gpt.complete(prompt, completion_kwargs)
-				completion = get_completion_logprobs_s(response, completion_kwargs, prompt_x)
-				correct = (completion == y) # evaluate_s(response, completion_kwargs, y, prompt_x)
+				completion = None
+				if cntr % 100 == 0:
+					prompt = fmt_func(content)
+					# prompt_x = fmt_func_x(content)
+					y = transform_func(perm)
+					prompt_x = prompt[:-(len(y)+1)] # + '\n'
+					response = gpt.complete(prompt, completion_kwargs)
+					completion = get_completion_logprobs_s(response, completion_kwargs, prompt_x)
+					correct = (completion == y) # evaluate_s(response, completion_kwargs, y, prompt_x)
+				if cntr == 0:
+					log.info(prompt)
+					log.info(prompt_x.rstrip())
+					log.info(completion)
+					log.info(correct)
 				cntr += 1
-				log.info(prompt)
-				log.info(prompt_x)
-				log.info(completion)
 				# log.info((completion, n_train))
-				log.info(response['choices'][0]['text'])
+				# log.info(response['choices'][0]['text'])
 				if completion is not None:
 					correct = (completion == y)
 					score += correct
@@ -126,11 +132,13 @@ def run_queries(argv):
 						log.info(f'Incorrect; {score}/{cntr} (n_train={n_train})')
 				pbar.update(1)
 				# break
-				if cntr >= 1:
-					break
-			if comb_idx >= 10:
-				break
+			# 	if cntr >= 50:
+			# 		break
+			# if comb_idx >= 1:
+			# 	break
 		# break
+		if cntr:
+			log.info(f'Score: {score}/{cntr} = {100.*score/cntr:.2f} (n_train={n_train})')
 
 	cost = gpt.calculate_cost()
 	if cost:

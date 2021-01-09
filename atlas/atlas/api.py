@@ -34,15 +34,19 @@ def get_completion_s(response, completion_kwargs: Dict, prompt: Optional[str] = 
 		completions = completions[0]
 	return completions
 
-def get_ppl(choice, completion_kwargs, prompt: Optional[str] = None, completion_only=True) -> Optional[float]:
-	top_logprobs = get_top_logprobs(choice, completion_kwargs, prompt, completion_only)
-	p = sum(top_logprobs)
-	return np.exp(-p/max(len(top_logprobs), 1))
+def get_ppl(choice, completion_kwargs, prompt: Optional[str] = None, completion_only=True, n=1, keys: Union[bool, Optional[List[str]]] = None) -> Optional[float]:
+	top_logprobs = get_top_logprobs(choice, completion_kwargs, prompt, completion_only, n, keys)
+	# try:
+	p = top_logprobs.sum()
+	return np.exp(-p/max(len(top_logprobs.reshape(-1)), 1))
+	# except Exception as e:
+	# 	log.warn(e)
+	# 	return np.nan
 
-def get_ppl_s(response, completion_kwargs: Dict, prompt: Optional[str] = None, completion_only=True) -> Optional[Union[float, List[float]]]:
+def get_ppl_s(response, completion_kwargs: Dict, prompt: Optional[str] = None, completion_only=True, n=1, keys: Union[bool, Optional[List[str]]] = None) -> Optional[Union[float, List[float]]]:
 	if response is None:
 		return None
-	ps = [get_ppl(choice, completion_kwargs, prompt, completion_only) for choice in response['choices']]
+	ps = [get_ppl(choice, completion_kwargs, prompt, completion_only, n, keys) for choice in response['choices']]
 	if len(ps) == 1:
 		ps = ps[0]
 	return ps
@@ -51,7 +55,11 @@ def get_top_logprobs(choice, completion_kwargs, prompt: Optional[str] = None, co
 	if choice is None:
 		return None
 	lps = choice['logprobs']['top_logprobs']
-	lps = [OrderedDict(sorted(lp.items(), key=lambda x: -x[1])) for lp in lps if lp is not None]
+	if len(lps) > 1 and not isinstance(lps[1], OrderedDict):
+		lps = [OrderedDict(sorted(lp.items(), key=lambda x: -x[1])) if lp is not None else None for lp in lps]
+		choice['logprobs']['top_logprobs'] = lps
+	if len(lps) > 0 and lps[0] is None:
+		lps = lps[1:]
 	start_idx = 0
 	if 'echo' in completion_kwargs and completion_kwargs['echo'] and completion_only:
 		s = ''
@@ -66,6 +74,8 @@ def get_top_logprobs(choice, completion_kwargs, prompt: Optional[str] = None, co
 		tokens = completion_kwargs['stop']
 		if isinstance(tokens, str):
 			tokens = [tokens]
+		if choice['logprobs']['top_logprobs'][0] is None:
+			start_idx += 1
 		for token in tokens:
 			try:
 				end_idx = min(end_idx, choice['logprobs']['tokens'][start_idx:].index(token))

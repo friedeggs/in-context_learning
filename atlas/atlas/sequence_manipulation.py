@@ -1,5 +1,6 @@
 import sys, os
 from collections import defaultdict, OrderedDict
+import itertools
 import logging; log = logging.getLogger(__name__)
 import matplotlib
 matplotlib.use('Agg')
@@ -21,6 +22,7 @@ from .api import (
 )
 from .content_lib import (
 	random_distinct_alpha_chars,
+	random_distinct_chars,
 	random_permutation,
 	random_word_length_5,
 )
@@ -47,6 +49,7 @@ from .util import (
 	count_tokens,
 	make_immutable,
 	permute,
+	set_seed,
 )
 
 DateSchema = create_date_schema()
@@ -77,11 +80,15 @@ class RandomPermutationDataset(NondeterministicDataset):
 
 def run_task(argv, formatted, n_train, n_test, tag='', visualize: bool = False, 
 		sample: Dataset = None, value_dict_func: Callable = None, index: int = -1,
-		io_format_args: Dict = {'include_y': True}, cache_args: List[Any] = []):
+		# io_format_args: Dict = {}, cache_args: List[Any] = []):
+		io_format_args: Dict = {'include_y': True}, cache_args: List[Any] = [],
+		engine: str = 'davinci',
+		):
 	completion_kwargs = {
 		'staged': True,
+		# 'staged': False,
 		'temperature': 0, 
-		'engine': 'davinci', 
+		'engine': engine, 
 		'max_tokens': 0, 
 		# 'max_tokens': 20, 
 		# 'staged': True, 
@@ -102,37 +109,40 @@ def run_task(argv, formatted, n_train, n_test, tag='', visualize: bool = False,
 	pred = FuncDataset(response_prompt, lambda _: get_completion_s(_[0], completion_kwargs, _[1]))  # type: str
 	correct = FuncDataset(SumDataset([pred, y]), lambda _: _[0] == _[1] if _[0] is not None else None)  # type: Optional[bool]
 	ppl = FuncDataset(response_prompt, lambda _: get_ppl_s(_[0], completion_kwargs, _[1]))  # type: Optional[str]
-	incorrect_indices = ListDataset([i for i, val in enumerate(correct) if val == False])  # type: Optional[float]
 	top_logprobs = FuncDataset(response_prompt, lambda _: get_top_logprobs_s(_[0], completion_kwargs, _[1], completion_only=False))  # type: Optional[List[float]]
 	# log.info(prompt[0][-50:])
 	# log.info([x for x in incorrect_indices])
-	# def analyze_templates(idx):
-	# 	# _sample = sample[idx]
-	# 	_pred = pred[idx]
-	# 	_x = x[idx]
-	# 	value_dict = value_dict_func(idx, sample, formatted)
-	# 	templates = match_templates(_pred, value_dict)
-	# 	min_length = min(map(len, templates))
-	# 	templates = list(filter(lambda _: len(_) == min_length, templates))
-	# 	print_templates(templates, None, _pred, _x)
-	# 	templates_by_name = list(map(lambda x1: list(map(lambda x2: list(map(lambda x3: x3[0], x2)), x1)), templates))
-	# 	return templates_by_name
-	# templates = FuncDataset(incorrect_indices, analyze_templates)
-	rows = SumDataset([x, pred, y, correct, ppl,], keys=['x', 'pred', 'y', 'correct', 'ppl',])
-	
-	# log.info(prompt[0])
 
-	responses = [response[i] for i in range(len(response))]
-	response_frozen = ListDataset(responses)
 	prompt_x = InputOutputDataset(formatted, **{**io_format_args, **{'include_y': False}})
+	# pred2 = FuncDataset(SumDataset([response, prompt_x]), 
+	# 	lambda _: get_completion_logprobs_s(_[0], completion_kwargs, _[1]))  # type: str
+	# correct2 = FuncDataset(SumDataset([pred2, y]), lambda _: _[0] == _[1] if _[0] is not None else None)  # type: Optional[bool]
+	# log.info(prompt[1])
+	# log.info(prompt[120])
+	responses = []
+	for _, i in zip(tqdm(range(len(response))), range(len(response))):
+		responses.append(response[i])
+		# c = correct2[i]
+		# if not c:
+		# 	log.info(f'Incorrect: pred={pred2[i]}, y={y[i]}, idx={i}')
+			# sys.exit()
+	# responses = [response[i] for i in range(len(response))]
+	response_frozen = ListDataset(responses)
 	# response_prompt.datasets[0] = response_frozen
 	response_prompt2 = SumDataset([response_frozen, prompt_x])
 
-	for n_train2 in range(0, 5): # n_train+5, 5):
+	output_fname = f'outputs/results{tag}.csv'
+
+	if os.path.isfile(output_fname):
+		df = pd.read_csv(output_fname)
+	else:
+		df = None
+	for n_train2 in range(0, n_train+1): # n_train+5, 5):
 		partial = FuncDataset(sample, lambda _: _[:n_train2+1])
 		formatted.dataset = partial
 		formatted.getitem.cache_clear()
 		prompt_x.getitem.cache_clear()
+		x.getitem.cache_clear()
 		y.getitem.cache_clear()
 		response_prompt2.getitem.cache_clear()
 		# FuncDataset.getitem.cache_clear()
@@ -148,15 +158,60 @@ def run_task(argv, formatted, n_train, n_test, tag='', visualize: bool = False,
 			lambda _: get_completion_logprobs_s(_[0], completion_kwargs, _[1]))  # type: str
 		# log.info(response_frozen[0]['choices'][0]['text'])
 		correct2 = FuncDataset(SumDataset([pred2, y]), lambda _: _[0] == _[1] if _[0] is not None else None)  # type: Optional[bool]
-		log.info(prompt_x[0])
-		log.info(pred2[0])
-		log.info(y[0])
-		log.info(correct2[0])
-		score = sum([correct2[i] for i in range(len(correct2)) if correct2[i] is not None])
-		log.info(f'Score: {score}/{len(correct2)} = {100.*score/len(correct2):.2f}%; n_train={n_train2}')
+		ppl2 = FuncDataset(response_prompt2, lambda _: get_ppl_s(_[0], completion_kwargs, _[1]))  # type: Optional[str]
+		# log.info(prompt_x[0])
+		# log.info(pred2[0])
+		# log.info(x[0])
+		# log.info(y[0])
+		# log.info(correct2[0])
+		# log.info(ppl2[0])
+
+		_correct2 = [correct2[i] for i in range(len(correct2)) if correct2[i] is not None]
+		if len(_correct2) > 0:
+			score = sum(_correct2)
+			# for i in range(len(correct2)):
+			# 	# log.info((prompt_x[i],pred2[i],y[i],correct2[i]))
+			# 	log.info((pred2[i],y[i],correct2[i]))
+			log.info(f'Score: {score}/{len(_correct2)} = {100.*score/len(_correct2):.2f}%; n_train={n_train2}')
+
+		incorrect_indices = ListDataset([i for i, val in enumerate(correct2) if val == False])  # type: Optional[float]
+		def analyze_templates(idx):
+			# _sample = sample[idx]
+			_pred = pred2[idx]
+			_x = x[idx]
+			value_dict = value_dict_func(idx, partial, formatted)
+			templates = match_templates(_pred, value_dict)
+			min_length = min(map(len, templates))
+			templates = list(filter(lambda _: len(_) == min_length, templates))
+			print_templates(templates, None, _pred, _x)
+			templates_by_name = list(map(lambda x1: list(map(lambda x2: list(map(lambda x3: x3[0], x2)), x1)), templates))
+			return templates_by_name
+		templates = FuncDataset(incorrect_indices, analyze_templates)
+		
+		cur_rows = SumDataset([x, pred2, y, correct2, ppl2,], keys=['x', 'pred', 'y', 'correct', 'ppl',])
+		_rows = [r for r in cur_rows]
+		df_cur = pd.DataFrame(_rows) # , columns=column_names)
+		df_cur['n_train'] = n_train2
+		df_cur['engine'] = engine
+		df_cur.fillna(value=pd.np.nan)
+		
+		if value_dict_func is not None: # and 'templates' not in df_cur.keys():
+			_templates = [None for _ in range(len(df_cur))]
+			for i, template in zip(incorrect_indices, templates):
+				_templates[i] = template
+			df_cur = df_cur.assign(templates=_templates)
+
+		if df is None:
+			df = df_cur
+		else:
+			df = pd.concat([df, df_cur], sort=False)
+			keys_for_comparison = ['x', 'pred', 'y', 'correct', 'ppl', 'engine',]
+			df['is_duplicate'] = df[keys_for_comparison].duplicated()
+			df = df[~df['is_duplicate']]
+		df.to_csv(output_fname)
+		
 	formatted.dataset = sample
 
-	output_fname = f'outputs/results{tag}.csv'
 	# if False: # os.path.isfile(output_fname):
 	# 	df = pd.read_csv(output_fname)
 	# else:
@@ -183,9 +238,9 @@ def run_task(argv, formatted, n_train, n_test, tag='', visualize: bool = False,
 	# 	for r in _rows:
 	# 		r['n_train'] = n_train
 
-	# 	# for r in _rows[:5]:
-	# 	# 	# print(r['prompt'])
-	# 	# 	log.info({k: v for k, v in r.items() if k not in ['prompt', 'top_logprobs', 'response']})
+	# 	for r in _rows[:5]:
+	# 		# print(r['prompt'])
+	# 		log.info({k: v for k, v in r.items() if k not in ['prompt', 'top_logprobs', 'response']})
 	# 	df = pd.DataFrame(_rows) # , columns=column_names)
 	# 	df.to_csv(output_fname)
 
@@ -204,9 +259,12 @@ def run_task(argv, formatted, n_train, n_test, tag='', visualize: bool = False,
 	# 	if i >= 5:
 	# 		break
 	# 	print(batch)
-	# log.info(df)
-	# log.info('Score: %.2f' % df.correct.mean())
-	# log.info('Avg ppl: %.2f' % df.ppl.mean())
+	try:
+		log.info(df)
+		log.info('Score: %.2f' % df.correct.mean())
+		log.info('Avg ppl: %.2f' % df.ppl.mean())
+	except Exception as e:
+		log.warn(e)
 
 	if visualize and 'dates_unnatural_content' not in tag:
 		try:
@@ -256,7 +314,7 @@ def run_task(argv, formatted, n_train, n_test, tag='', visualize: bool = False,
 			log.warn('Submitting queries without confirmation!')
 		gpt.run_staged_queries(k)
 
-def dates(argv, n_train=15, n_test=5):
+def dates(argv, n_train=15, n_test=5, engine='davinci'):
 	year = IntDataset(1970, 2020, offset=0)
 	month = IntDataset(1, 12+1, offset=1)
 	day = IntDataset(1, 28+1, offset=2)
@@ -269,7 +327,8 @@ def dates(argv, n_train=15, n_test=5):
 		lambda x: '!'.join([''] + list(map(lambda n: f'{n:02d}', permute(x, [1,2,0]))) + ['']),
 		map=True,
 	)
-	run_task(argv, formatted, n_train, n_test, f'_dates_n_train-{n_train}', sample=sample, value_dict_func=get_value_dict_dates)
+	cache_args = ['cache_GPT3_dates.jsonl']
+	run_task(argv, formatted, n_train, n_test, f'_dates_n_train-{n_train}', sample=sample, value_dict_func=get_value_dict_dates, cache_args=cache_args, engine=engine)
 
 def dates_natural_format(argv, n_train=15, n_test=5):
 	year = IntDataset(1970, 2020, offset=0)
@@ -284,7 +343,8 @@ def dates_natural_format(argv, n_train=15, n_test=5):
 		lambda x: '/'.join(map(lambda n: f'{n:02d}', permute(x, [1,2,0]))),
 		map=True,
 	)
-	run_task(argv, formatted, n_train, n_test, f'_dates_natural_format_n_train-{n_train}', sample=sample, value_dict_func=get_value_dict_dates)
+	cache_args = ['cache_GPT3_dates.jsonl']
+	run_task(argv, formatted, n_train, n_test, f'_dates_natural_format_n_train-{n_train}', sample=sample, value_dict_func=get_value_dict_dates, cache_args=cache_args)
 
 def dates_unnatural_content(argv, n_train=15, n_test=5):
 	year = IntDataset(10_000, 100_000, offset=0)
@@ -299,7 +359,8 @@ def dates_unnatural_content(argv, n_train=15, n_test=5):
 		lambda x: '!'.join([''] + list(map(str, permute(x, [1,2,0]))) + ['']),
 		map=True,
 	)
-	run_task(argv, formatted, n_train, n_test, f'_dates_unnatural_content_n_train-{n_train}', sample=sample, value_dict_func=get_value_dict_dates)
+	cache_args = ['cache_GPT3_dates.jsonl']
+	run_task(argv, formatted, n_train, n_test, f'_dates_unnatural_content_n_train-{n_train}', sample=sample, value_dict_func=get_value_dict_dates, cache_args=cache_args)
 
 def dates_unnatural_content_3_digit(argv, n_train=15, n_test=5):
 	year = IntDataset(100, 1_000, offset=0)
@@ -386,7 +447,9 @@ def unnatural_addition_2_digit(argv, n_train=80, n_test=5, n=5, sep1=' + ', sep2
 		'include_y': True,
 		'prefix': prefix,
 	}
-	cache_args = ['cache_GPT3_unnatural_addition.jsonl']
+	cache_args = ['cache_GPT3_unnatural_addition_lps-1.jsonl']
+	if n_train > 300:
+		cache_args = ['cache_GPT3_unnatural_addition_long.jsonl']
 	# cache_args = []
 	run_task(argv, formatted, n_train, n_test, f'_unnatural_addition_2_digit_n_train-{n_train}', sample=sample, value_dict_func=get_value_dict_numbers, io_format_args=io_format_args, cache_args=cache_args)
 
@@ -414,6 +477,40 @@ def unnatural_addition_2_digit_qa(argv, n_train=80, n_test=5, n=5, sep1=' + ', s
 	# cache_args = []
 	run_task(argv, formatted, n_train, n_test, f'_unnatural_addition_2_digit_qa_n_train-{n_train}', sample=sample, value_dict_func=get_value_dict_numbers, io_format_args=io_format_args, cache_args=cache_args)
 
+def identity(argv, n_train=5, n_test=5, n=5, sep=', ', prefix=None, engine='davinci'):
+	_content = []
+	cntr = 0
+	for comb_idx, comb in enumerate(itertools.combinations('abcdefgh', n)):
+		for perm in itertools.permutations(comb):
+			set_seed(cntr)
+			c = np.concatenate([
+				random_distinct_chars((1, n)) for _ in range(n_train)] + 
+				[np.array(perm).reshape(1, n)
+			])
+			_content.append(c)
+			cntr += 1
+	sample = ListDataset(_content)
+	log.info(sample[0])
+	# content_dataset = NondeterministicDataset(func=lambda _: list(random_distinct_chars(n)))
+	# sample = FewShotDataset(content_dataset, n_train=n_train, n_test=n_test)
+	formatted = FormattingDataset(sample,  
+		# lambda _: space_separate(_), 
+		# lambda _: space_separate(_[::-1]),
+		lambda _: sep.join(_), 
+		lambda _: sep.join(_),
+		map=True,
+	)
+	io_format_args = {
+		# 'x_label': '',
+		# 'y_label': '',
+		# 'intra_separator': '',
+		# 'x_y_separator': sep2,
+		'include_y': True,
+		# 'prefix': prefix,
+	}
+	cache_args = ['cache_GPT3_identity.jsonl']
+	run_task(argv, formatted, n_train, n_test, f'_identity_n_train-{n_train}', sample=sample, value_dict_func=get_value_dict_chars, io_format_args=io_format_args, cache_args=cache_args, engine=engine)
+
 def get_value_dict_dates(idx, sample, formatted):
 	_content = DateSchema(*sample[idx][-1])
 	tgt_form = formatted.tgt_form
@@ -427,6 +524,8 @@ def get_value_dict_chars(idx, sample, formatted):
 		**{'<alpha>': r'[a-z]',},
 		**{'<*>': r'.',},
 		**get_form_primitives(_content, [tgt_form]),
+		**{'Input': 'Input'},
+		**{'Output': 'Output'},
 	})
 	return value_dict
 
@@ -434,6 +533,7 @@ def get_value_dict_numbers(idx, sample, formatted):
 	_content = sample[idx][-1]
 	summand1, summand2 = _content
 	_sum = summand1 + summand2
+	_diff = summand1 - summand2
 	# tgt_form = formatted.tgt_form
 	value_dict = OrderedDict({
 		# **{f'cp{i}': str(cp) for i, cp in enumerate(_content)},
@@ -441,9 +541,12 @@ def get_value_dict_numbers(idx, sample, formatted):
 			'summand1': summand1,
 			'summand2': summand2,
 			'sum': _sum,
+			'diff': _diff,
 		},
 		**{'<n-digit>': r'\d+',},
 		# **get_form_primitives(_content, [tgt_form]),
+		**{'Input': 'Input'},
+		**{'Output': 'Output'},
 	})
 	value_dict = add_neighbors_numeric(value_dict)
 	return value_dict
@@ -456,15 +559,17 @@ def add_neighbors_numeric(base_value_dict):
 
 		if not isinstance(v, int):
 			continue
+		
+		# if v > 0:
+		new_value_dict[f'{k}_minus-one'] = str(v-1)
+		
+		new_value_dict[f'{k}_plus-one'] = str(v+1)
 
 		v_str = str(v)
 
 		for i in range(len(v_str)):
-			
-			if v > 0:
-				new_value_dict[f'{k}_minus-one'] = str(v-1)
-			
-			new_value_dict[f'{k}_plus-one'] = str(v+1)
+			if v_str[i] == '-':
+				continue
 			
 			digit = int(v_str[i])
 

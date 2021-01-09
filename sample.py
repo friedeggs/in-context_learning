@@ -772,6 +772,7 @@ def save_df(csv_path=CSV_PATH, df=None):
 		df = pd.concat([df, df_prev], sort=False)
 	df['is_duplicate'] = df[keys_for_comparison].duplicated()
 	df = df[~df['is_duplicate']]
+	df.drop(columns=['is_duplicate'])
 	# print(df['rel'].value_counts())
 	_keys_to_keep = set(keys_to_keep).intersection(df.keys())
 	df = df[_keys_to_keep]

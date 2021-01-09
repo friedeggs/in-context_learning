@@ -90,15 +90,28 @@ def read_cache(filename: str = DEFAULT_CACHE_PATH, n_lines: Optional[int] = None
                 for _, line in zip(tqdm(range(n_lines)), open(filename)):
                     try:
                         item = json.loads(line)
-                        cache[get_key(item['request'])] = item['response']
                     except Exception:
                         try:
                             item = json.loads(eval(line).decode())
-                            cache[get_key(item['request'])] = item['response']
                         except Exception as e:
                             error_msg = e
                             pass
                         pass
+                    key = get_key(item['request'])
+                    if key in cache:
+                        if cache[key] != item['response']:
+                            try:
+                                lps1 = len(cache[key]['choices'][0]['logprobs']['top_logprobs'][1])
+                            except Exception as e:
+                                lps1 = 0
+                            try:
+                                lps2 = len(item['response']['choices'][0]['logprobs']['top_logprobs'][1])
+                            except Exception as e:
+                                lps2 = 0
+                            if lps1 < lps2:
+                                cache[key] = item['response']
+                    else:
+                        cache[key] = item['response']
             if error_msg is not None:
                 log.error(f'Encountered exception {error_msg} while reading {filename}')
             # if len(cache) == 0:
@@ -108,8 +121,9 @@ def read_cache(filename: str = DEFAULT_CACHE_PATH, n_lines: Optional[int] = None
     return cache
 
 def write_cache(cache: Dict, filename: Optional[str] = None):
-    log.info('Writing cache')
     filename = filename or cache.get('__filename__') or DEFAULT_CACHE_PATH
+    # filename = filename.replace('_lps-1.jsonl', '.jsonl')
+    log.info(f'Writing cache at {filename}')
     s = signal.signal(signal.SIGINT, signal.SIG_IGN) # TODO turn back on
     if filename.endswith('.pkl'):
         with open(filename, 'wb') as f:
@@ -128,10 +142,24 @@ def write_cache(cache: Dict, filename: Optional[str] = None):
     signal.signal(signal.SIGINT, s)
     log.info(f"Wrote {len(cache)} cache entries")
 
+def keep_top_n_logprobs(response, n=1):
+    if isinstance(response, dict):
+        for idx in range(len(response['choices'])):
+            try:
+                lps = response['choices'][idx]['logprobs']['top_logprobs']
+            except (KeyError, TypeError):
+                lps = None
+            if lps is None:
+                continue
+            lps = [OrderedDict(sorted(lp.items(), key=lambda x: -x[1])) if lp is not None else None for lp in lps]
+            lps = [OrderedDict({k: v for k, v in list(lp.items())[:n]}) if lp is not None else None for lp in lps]
+            response['choices'][idx]['logprobs']['top_logprobs'] = lps
+    return response
+
 def append_cache(cache: Dict, key, filename: Optional[str] = None):
     filename = cache.get('__filename__') or filename or DEFAULT_CACHE_PATH
     s = signal.signal(signal.SIGINT, signal.SIG_IGN)
-    with open(filename, 'a') as f:
+    with open(filename.replace('_lps-1.jsonl', '.jsonl'), 'a') as f:
         _key = key if isinstance(key, str) else dict(key)
         value = cache[key]
         item = {
@@ -140,6 +168,18 @@ def append_cache(cache: Dict, key, filename: Optional[str] = None):
         }
         print(str(json.dumps(item), "utf-8"), file=f)
     signal.signal(signal.SIGINT, s)
+    if '_lps-1' in filename:
+        s = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        with open(filename, 'a') as f:
+            _key = key if isinstance(key, str) else dict(key)
+            value = cache[key]
+            value = keep_top_n_logprobs(value)
+            item = {
+                'request': _key,
+                'response': value,
+            }
+            print(str(json.dumps(item), "utf-8"), file=f)
+        signal.signal(signal.SIGINT, s)
     # print(f"Appended 1 entry to cache")
 
 class GPT(abc.ABC):
@@ -231,10 +271,10 @@ class GPT(abc.ABC):
                 #     print('%d staged requests left to skip' % cntr)
                 continue
             _key = [el for el in key if el[0] != 'prompt']
-            # log.info(str(_key))
+            log.info(str(_key))
             kwargs = dict(key)
             del kwargs['staged']
-            # log.info(kwargs['prompt']) # [-200:])
+            log.info(kwargs['prompt']) # [-200:])
             if k == 'c':
                 k2 = 'x'
                 while k2[0] not in list('ynqs'):
@@ -282,6 +322,8 @@ class GPT3(GPT):
         return response
 
 def get_cache(filename: str = DEFAULT_CACHE_PATH, n_lines: Optional[int] = None):
+    if os.path.isfile(filename.replace('.jsonl','_lps-1.jsonl')):
+        filename = filename.replace('.jsonl','_lps-1.jsonl')
     log.debug('Getting cache %s' % filename)
     global CACHE
     if CACHE[filename] is None:

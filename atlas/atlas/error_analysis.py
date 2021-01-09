@@ -63,6 +63,8 @@ def get_value_dict(content, tgt_forms: List[Callable]):
 		**{f'fp{i}': fp for i, fp in enumerate(form_primitives)},
 		**{'<2-digit>': r'\d\d',},
 		**{'<5-digit>': r'\d\d\d\d\d',},
+		**{'Input': 'Input'},  # TODO use io_format_args instead of hardcoding
+		**{'Output': 'Output'},
 	}
 	value_dict = add_neighbors(value_dict)
 	return value_dict
