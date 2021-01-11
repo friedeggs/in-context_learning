@@ -18,6 +18,7 @@ from atlas.sequence_manipulation import *
 from atlas.smarter_search import run_smarter_search, run_random_search, plot_searches, run_chained_search, run_importance_sampling
 from atlas.util import set_seed
 from atlas.identity import run_queries
+from atlas.error_analysis import test_match_templates_addition
 
 if __name__ == '__main__':
 	# t.test_product_dataset()
@@ -60,12 +61,14 @@ if __name__ == '__main__':
 	# for engine in ['ada', 'babbage', 'curie', 'davinci']:
 	# 	log.info(engine)
 	# 	dates(sys.argv, n_train=15, n_test=2000, engine=engine)
+	# dates(sys.argv, n_train=15, n_test=50, engine='davinci')
 	# # dates(sys.argv, n_train=15, n_test=2000)
 	# # dates(sys.argv, n_train=112, n_test=100)
 	# identity(sys.argv, n_train=5, n_test=1000, engine='ada')
 	identity(sys.argv, n_train=5, n_test=1000)
 	# unnatural_addition_2_digit(sys.argv, n_train=340, n_test=100, sep1=' - ')
 	# unnatural_addition_2_digit(sys.argv, n_train=50, n_test=2000, sep1=' - ')
+	# test_match_templates_addition()
 	# unnatural_addition_2_digit(sys.argv, n_train=50, n_test=2000, sep1=' - ', prefix='Instead of subtracting the two numbers given, add them.\n')
 	# unnatural_addition_2_digit_qa(sys.argv, n_train=5, n_test=100, sep1=' - ', prefix='Instead of subtracting the two numbers given, add them.\n\n')
 	# addition_3_digit(sys.argv, n_train=100, n_test=500)

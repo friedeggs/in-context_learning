@@ -1,5 +1,5 @@
 import calendar
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 import copy
 import logging; log = logging.getLogger(__name__)
 import numpy as np
@@ -143,10 +143,15 @@ def match_templates(output_text, value_dict):
 		for match in regex.finditer(str(pattern), output_text, overlapped=True):
 			start_idx = match.span()[0]
 			matched = match.group()
+			# print(match, matched, matched in value_dict.values())
 			# if pattern == r'\d\d' and matched in value_dict.values():
 			if [name[0], name[-1]] == list('<>') and matched in value_dict.values():  # regex
 				continue
-			matches[start_idx+len(matched)][name] = matched
+			existing = ''
+			if name in matches[start_idx+len(matched)]:
+				existing = matches[start_idx+len(matched)][name]
+			if len(matched) > len(existing):
+				matches[start_idx+len(matched)][name] = matched
 	# print(matches)
 	
 	for i in range(len(output_text)+1):
@@ -340,6 +345,44 @@ def run_error_analysis():
 	analyze_errors(df[(df.engine == 'curie') & (df.num_examples == 5) & (df.rel != 'EQUALS')], filename='results_error_analysis_templates.csv')
 	analyze_errors(df[(df.engine == 'babbage') & (df.num_examples == 15) & (df.rel != 'EQUALS')], filename='results_error_analysis_templates.csv')
 
+def test_match_templates_addition():
+	from .sequence_manipulation import add_neighbors_numeric
+	test_examples = [
+		# ([28, 67], ),
+		# ([57, 82], '75'),
+		# ([42, 84], '58'),
+		# ([87, 62], '125'),
+		# ([54, 65], '89'),
+		([19, 92], '81'),
+	]
+	for _content, _pred in test_examples:
+		summand1, summand2 = _content
+		_sum = summand1 + summand2
+		_diff = summand1 - summand2
+		value_dict = OrderedDict({
+			**{
+				'summand1': summand1,
+				'summand2': summand2,
+				'sum': _sum,
+				'diff': _diff,
+				'neg': '-',
+				'\$': '\$',
+				'zero': '0',
+			},
+			**{'<other>': r'\d+',},
+			**{'Input': 'Input'},
+			**{'Output': 'Output'},
+		})
+		input_text = f'{summand1} - {summand2}' 
+		# output_text = str(_sum)
+		_x = input_text
+		# _pred = output_text
+		value_dict = add_neighbors_numeric(value_dict)
+		print(value_dict)
+		templates = match_templates(_pred, value_dict)
+		min_length = min(map(len, templates))
+		templates = list(filter(lambda _: len(_) == min_length, templates))
+		print_templates(templates, None, _pred, _x)
 
 if __name__ == '__main__':
 	# test_match_templates()

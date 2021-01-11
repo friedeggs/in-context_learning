@@ -1,6 +1,7 @@
 import sys, os
 from collections import defaultdict, OrderedDict
 import itertools
+import json
 import logging; log = logging.getLogger(__name__)
 import matplotlib
 matplotlib.use('Agg')
@@ -117,7 +118,7 @@ def run_task(argv, formatted, n_train, n_test, tag='', visualize: bool = False,
 	# pred2 = FuncDataset(SumDataset([response, prompt_x]), 
 	# 	lambda _: get_completion_logprobs_s(_[0], completion_kwargs, _[1]))  # type: str
 	# correct2 = FuncDataset(SumDataset([pred2, y]), lambda _: _[0] == _[1] if _[0] is not None else None)  # type: Optional[bool]
-	# log.info(prompt[1])
+	log.info(prompt[0])
 	# log.info(prompt[120])
 	responses = []
 	for _, i in zip(tqdm(range(len(response))), range(len(response))):
@@ -182,8 +183,12 @@ def run_task(argv, formatted, n_train, n_test, tag='', visualize: bool = False,
 			value_dict = value_dict_func(idx, partial, formatted)
 			templates = match_templates(_pred, value_dict)
 			min_length = min(map(len, templates))
+			if 'unnatural_addition_2_digit' in tag:
+				min_length = 1
 			templates = list(filter(lambda _: len(_) == min_length, templates))
-			print_templates(templates, None, _pred, _x)
+			if idx < 10:
+				# print(json.dumps(value_dict, indent=4))
+				print_templates(templates, None, _pred, _x)
 			templates_by_name = list(map(lambda x1: list(map(lambda x2: list(map(lambda x3: x3[0], x2)), x1)), templates))
 			return templates_by_name
 		templates = FuncDataset(incorrect_indices, analyze_templates)
@@ -206,8 +211,8 @@ def run_task(argv, formatted, n_train, n_test, tag='', visualize: bool = False,
 		else:
 			df = pd.concat([df, df_cur], sort=False)
 			keys_for_comparison = ['x', 'pred', 'y', 'correct', 'ppl', 'engine',]
-			df['is_duplicate'] = df[keys_for_comparison].duplicated()
-			df = df[~df['is_duplicate']]
+			# df['is_duplicate'] = df[keys_for_comparison].duplicated()
+			# df = df[~df['is_duplicate']]
 		df.to_csv(output_fname)
 		
 	formatted.dataset = sample
@@ -259,12 +264,12 @@ def run_task(argv, formatted, n_train, n_test, tag='', visualize: bool = False,
 	# 	if i >= 5:
 	# 		break
 	# 	print(batch)
-	try:
-		log.info(df)
-		log.info('Score: %.2f' % df.correct.mean())
-		log.info('Avg ppl: %.2f' % df.ppl.mean())
-	except Exception as e:
-		log.warn(e)
+	# try:
+	# 	log.info(df)
+	# 	log.info('Score: %.2f' % df.correct.mean())
+	# 	log.info('Avg ppl: %.2f' % df.ppl.mean())
+	# except Exception as e:
+	# 	log.warn(e)
 
 	if visualize and 'dates_unnatural_content' not in tag:
 		try:
@@ -490,7 +495,7 @@ def identity(argv, n_train=5, n_test=5, n=5, sep=', ', prefix=None, engine='davi
 			_content.append(c)
 			cntr += 1
 	sample = ListDataset(_content)
-	log.info(sample[0])
+	# log.info(sample[0])
 	# content_dataset = NondeterministicDataset(func=lambda _: list(random_distinct_chars(n)))
 	# sample = FewShotDataset(content_dataset, n_train=n_train, n_test=n_test)
 	formatted = FormattingDataset(sample,  
@@ -529,7 +534,7 @@ def get_value_dict_chars(idx, sample, formatted):
 	})
 	return value_dict
 
-def get_value_dict_numbers(idx, sample, formatted):
+def get_value_dict_numbers(idx, sample, formatted=None):
 	_content = sample[idx][-1]
 	summand1, summand2 = _content
 	_sum = summand1 + summand2
@@ -542,8 +547,11 @@ def get_value_dict_numbers(idx, sample, formatted):
 			'summand2': summand2,
 			'sum': _sum,
 			'diff': _diff,
+			'neg': '-',
+			'\$': '\$',
+			'zero': '0',
 		},
-		**{'<n-digit>': r'\d+',},
+		**{'<other>': r'\d+',},
 		# **get_form_primitives(_content, [tgt_form]),
 		**{'Input': 'Input'},
 		**{'Output': 'Output'},
@@ -561,9 +569,9 @@ def add_neighbors_numeric(base_value_dict):
 			continue
 		
 		# if v > 0:
-		new_value_dict[f'{k}_minus-one'] = str(v-1)
+		# new_value_dict[f'{k}_minus-one'] = str(v-1)
 		
-		new_value_dict[f'{k}_plus-one'] = str(v+1)
+		# new_value_dict[f'{k}_plus-one'] = str(v+1)
 
 		v_str = str(v)
 
@@ -572,14 +580,15 @@ def add_neighbors_numeric(base_value_dict):
 				continue
 			
 			digit = int(v_str[i])
+			ni = len(v_str)-1-i
 
-			if i < len(v_str)-1 and digit > 0: 
-				new_value_dict[f'{k}_digit_{i}_minus-one'] = v_str[:i] + str(i-1) + v_str[i+1:]
+			# if i < len(v_str)-1 and digit > 0: 
+			# 	new_value_dict[f'{k}_digit_{ni}_minus-one'] = v_str[:i] + str(digit-1) + v_str[i+1:]
 			
-			if i < len(v_str)-1 and digit < 9: 
-				new_value_dict[f'{k}_digit_{i}_plus-one'] = v_str[:i] + str(i+1) + v_str[i+1:]
+			# if i < len(v_str)-1 and digit < 9: 
+			# 	new_value_dict[f'{k}_digit_{ni}_plus-one'] = v_str[:i] + str(digit+1) + v_str[i+1:]
 			
-			new_value_dict[f'<{k}_digit_{i}_off>'] = v_str[:i] + '\d' + v_str[i+1:]
+			new_value_dict[f'<{k}_digit_{ni}_off>'] = v_str[:i] + '\d' + v_str[i+1:]
 
 	base_value_dict = new_value_dict
 	new_value_dict = {}

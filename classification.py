@@ -287,7 +287,8 @@ def run_task_E(gpt3):
 	]
 	set_seed(0)
 	train_examples = list(np.random.permutation(train_examples))
-	print('\n'.join(list(map(lambda x: ' -> '.join(x), train_examples))))
+	print('\n'.join(list(map(lambda x: ': '.join(x), train_examples))))
+	# print('\n'.join(list(map(lambda x: ' -> '.join(x), train_examples))))
 	test_examples = [
 		('llama', labels['animal']),
 		('cat', labels['animal']),
@@ -305,6 +306,9 @@ def run_task_E(gpt3):
 		('tennis', labels['sport']),
 		('judo', labels['sport']),
 	]
+	print('')
+	print('\n'.join(list(map(lambda x: ': '.join(x), test_examples))))
+	print(len(test_examples))
 	_run_task(gpt3, prefix, train_examples, test_examples)
 
 def main(argv):

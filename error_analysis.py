@@ -1,5 +1,5 @@
 import calendar
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 import copy
 import numpy as np
 import regex
@@ -94,7 +94,7 @@ def get_solutions(backtrack, idx, arrs):
 		# res.extend(get_solutions(backtrack, idx-len(matched), arrs.append([name])))
 		res.extend(solutions)
 		# import pdb; pdb.set_trace()
-	return res
+	return list(set(res))
 
 def match_templates(output_text, value_dict):
 	
@@ -106,7 +106,8 @@ def match_templates(output_text, value_dict):
 		for match in regex.finditer(str(pattern), output_text, overlapped=True):
 			start_idx = match.span()[0]
 			matched = match.group()
-			if pattern == r'\d\d' and matched in value_dict.values():
+			# if pattern == r'\d\d' and matched in value_dict.values():
+			if name[0] == '<' and matched in value_dict.values():
 				continue
 			matches[start_idx+len(matched)][name] = matched
 	# print(matches)
@@ -300,11 +301,44 @@ def run_error_analysis():
 	analyze_errors(df[(df.engine == 'curie') & (df.num_examples == 5) & (df.rel != 'EQUALS')], filename='results_error_analysis_templates.csv')
 	analyze_errors(df[(df.engine == 'babbage') & (df.num_examples == 15) & (df.rel != 'EQUALS')], filename='results_error_analysis_templates.csv')
 
+def test_match_templates_addition():
+	from sequence_manipulation import add_neighbors_numeric
+	test_examples = [
+		[28, 67],
+	]
+	for _content in test_examples:
+		summand1, summand2 = _content
+		_sum = summand1 + summand2
+		_diff = summand1 - summand2
+		value_dict = OrderedDict({
+			**{
+				'summand1': summand1,
+				'summand2': summand2,
+				'sum': _sum,
+				'diff': _diff,
+				'neg': '-',
+				'\$': '\$',
+				'zero': '0',
+			},
+			**{'<other>': r'\d+',},
+			**{'Input': 'Input'},
+			**{'Output': 'Output'},
+		})
+		input_text = '{summand1} - {summand2}' 
+		output_text = str(_sum)
+		_x = input_text
+		_pred = output_text
+		value_dict = add_neighbors_numeric(value_dict)
+		templates = match_templates(_pred, value_dict)
+		min_length = min(map(len, templates))
+		templates = list(filter(lambda _: len(_) == min_length, templates))
+		print_templates(templates, None, _pred, _x)
 
 if __name__ == '__main__':
 	# test_match_templates()
 	# test_end_to_end()
-	run_error_analysis()
+	# run_error_analysis()
+	test_match_templates_addition()
 
 # extend to log probs?
 # 	- beam search the top predictions when variance is high, and apply template search to the predictions
