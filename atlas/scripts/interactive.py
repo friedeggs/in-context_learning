@@ -1,4 +1,6 @@
-import sys, os 
+import sys, os
+sys.path.append('.')
+
 import exrex
 # import matplotlib
 # matplotlib.use('tkAgg')
@@ -11,11 +13,7 @@ import re
 from termcolor import colored
 import traceback
 
-from process import (
-	GPT3, MockGPT3,
-	read_cache, 
-	set_seed
-)
+from atlas.gpt import GPT3, get_cache
 
 keys = [
 	'max_tokens',
@@ -38,10 +36,11 @@ def match_key(_key):
 def run(gpt):
 	kwargs = {
 		'engine': 'davinci',
-		'max_tokens': 10,
+		'max_tokens': 64,
 		'stop': ["\n", "\r", "\n\n"],
 		'logprobs': 100,
 		'temperature': 0.,
+		'staged': True,
 	}
 	while True:
 		k = None
@@ -93,7 +92,7 @@ def run(gpt):
 			# s = """“Thank you for doing business at our house, and I hope to see you again!” I left not a little unnerved, and still woozy from the **leeches**. “Come on,” said Nepthys, “you could use a drink.”\nQ: What are appropriate substitutes for **leeches** in the above text?\nA: bloodsucker, parasite, bloodletting, bleeding, worm, blood sucker, blood let, insect\n\nElectronic theft by foreign and industrial spies and disgruntled employees is costing U.S. companies billions and eroding their international competitive advantage. That was the message delivered by government and private security experts at an all-day conference on corporate **electronic** espionage. "Hostile and even friendly nations routinely steal information from U.S. companies and share it with their own companies," said Noel D. Matchett, a former staffer at the federal National Security Agency and now president of Information Security Inc., Silver Spring, Md.\nQ: What are appropriate substitutes for **electronic** in the above text?\nA:"""
 			gpt.complete(
 				prompt=s,
-				**kwargs
+				completion_kwargs=kwargs,
 			)
 		elif k == 'r':
 			gpt.run_staged_queries()
@@ -101,12 +100,10 @@ def run(gpt):
 			break
 
 def main(argv):
-	GPT = GPT3 if 'submit' in argv else MockGPT3
-	print('Using ' + GPT.__name__)
-
-	cache_fname = f'cache_{GPT.__name__}.jsonl'
-	cache = read_cache(cache_fname)
-	gpt = GPT(cache)
+	mock = 'submit' not in argv
+	cache_fname = 'cache_GPT3.jsonl' if not mock else 'cache_MockGPT3.jsonl'
+	cache = get_cache(cache_fname)
+	gpt = GPT3(cache, mock)
 	run(gpt)
 
 if __name__ == '__main__':

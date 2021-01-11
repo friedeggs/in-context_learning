@@ -185,7 +185,7 @@ def upto(s, substr):
 			idx = s.index(substr)
 			return s[:idx+1]
 		except ValueError:
-			s
+			return s
 
 def moving_average(x, w):
     return np.convolve(x, np.ones(w), 'valid') / w

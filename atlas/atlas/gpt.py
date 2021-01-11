@@ -264,17 +264,18 @@ class GPT(abc.ABC):
         if k not in list('yc'):
             return
         cntr = 0
-        for _, (key, value) in zip(tqdm(staged), staged.items()):
+        submitted = [False for _ in range(len(staged))]
+        for idx, _, (key, value) in zip(range(len(staged)), tqdm(staged), staged.items()):
             if cntr > 0:
                 cntr -= 1
                 # if cntr > 0 and cntr % 5 == 0:
                 #     print('%d staged requests left to skip' % cntr)
                 continue
             _key = [el for el in key if el[0] != 'prompt']
-            log.info(str(_key))
+            log.debug(str(_key))
             kwargs = dict(key)
             del kwargs['staged']
-            log.info(kwargs['prompt']) # [-200:])
+            log.debug(kwargs['prompt']) # [-200:])
             if k == 'c':
                 k2 = 'x'
                 while k2[0] not in list('ynqs'):
@@ -287,12 +288,14 @@ class GPT(abc.ABC):
                     cntr = int(k2[2:])
                     print('Skipping %d staged requests' % cntr)
             response = self.make_query(**kwargs)
+            submitted[idx] = True
             # if response is not None and response['choices']:
             #     for choice in response['choices']:
             #         print(colored(choice['text'], 'yellow'))
             #         self.print_logprobs(choice)
-        for key in staged.keys():
-            del self.cache[key]
+        for submitted, key in zip(submitted, staged.keys()):
+            if submitted:
+                del self.cache[key]
         # write_cache(self.cache)
 
     def complete(self, prompt: str, completion_kwargs: Dict = {}, return_response: bool = True):
@@ -306,6 +309,52 @@ class GPT(abc.ABC):
     #     response = self.complete(prompt, completion_kwargs)
     #     if return_response:
     #         return response
+
+    def few_shot(self, examples: List[Tuple[str, str]], x: str, y: Optional[str] = None, prefix: Optional[str] = None, x_label: str = 'Input', y_label: str = 'Output', return_kwargs: bool = False, formatter = None, verbose=True, **kwargs):
+        # kwargs = {**self.default_generation_kwargs, **kwargs}
+        if formatter is not None:
+            prompt = '\n'.join(map(formatter, examples + [(x, '')])).rstrip() # [:-1]
+        else:
+            prompt = f'{x_label}: {x}\n{y_label}:'
+            if len(examples) > 0:
+                prompt = '\n'.join([f'{x_label}: {x}\n{y_label}: {y}' for x, y in examples]) + '\n' + prompt
+        if prefix is not None:
+            prompt = prefix + '\n' + prompt
+        kwargs['prompt'] = prompt
+        if 'stop' not in kwargs:
+            kwargs['stop'] = '\n'
+        if kwargs['stop'] is None:
+            del kwargs['stop']
+        response = self.make_query(**kwargs)
+        #prompt = kwargs['prompt']
+        #del kwargs['prompt']
+        # print(make_header(kwargs))
+        # print(prompt, end='')
+        rel = None
+        if y is not None:
+            y = y.lstrip().rstrip()
+        if response is not None:
+            for choice in response['choices']:
+                predicted_y = choice['text'].lstrip().rstrip()
+                if y is not None:  # Correct answer given
+                    if y == predicted_y:
+                        rel = colored('EQUALS', 'green')
+                    elif y in predicted_y:
+                        rel = colored('CONTAINS', 'yellow')
+                    elif 1. * levenshtein(y, predicted_y) / max(len(y), len(predicted_y)) <= .2:
+                        rel = colored('CLOSE', 'magenta')
+                    else:
+                        rel = 'NOT EQUALS'
+                    extra = f' {rel} {y}'
+                else:
+                    extra = ''
+                if verbose:
+                    print(f'[{len(examples)} examples] {x} -> {colored(predicted_y, RESPONSE_COLOR)}{extra}')
+                    # self.print_logprobs(choice)
+        retval = [response, rel]
+        if return_kwargs:
+            retval.append(kwargs)
+        return retval
 
     def ppl(self, prompt, completion_kwargs: Dict = {}, completion_only: bool = True, prefix: Optional[str] = None):
         response = self.complete(prompt, completion_kwargs)

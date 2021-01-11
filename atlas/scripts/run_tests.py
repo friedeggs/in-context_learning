@@ -65,7 +65,7 @@ if __name__ == '__main__':
 	# # dates(sys.argv, n_train=15, n_test=2000)
 	# # dates(sys.argv, n_train=112, n_test=100)
 	# identity(sys.argv, n_train=5, n_test=1000, engine='ada')
-	identity(sys.argv, n_train=5, n_test=1000)
+	# identity(sys.argv, n_train=5, n_test=1000)
 	# unnatural_addition_2_digit(sys.argv, n_train=340, n_test=100, sep1=' - ')
 	# unnatural_addition_2_digit(sys.argv, n_train=50, n_test=2000, sep1=' - ')
 	# test_match_templates_addition()
