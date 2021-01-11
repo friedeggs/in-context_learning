@@ -1,5 +1,5 @@
 # Quick start
-Check out `scripts/example.py` for example code.
+Check out `atlas/scripts/example.py` for example code.
 
 To run:
 ```
