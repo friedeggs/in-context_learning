@@ -6,6 +6,8 @@ References:
 Tests:
     QueryUsage: base64encode('command=%2Flassie&text=usage from Dec 1 to Dec 16').replace(' ','%20')
         'command=%2Flassie&text=usage%20from%20Dec%201%20to%20Dec%2016'
+DEV run:
+    python lambda_function.py $API_KEY dev
 """
 import sys, os
 from dateutil.parser import parse as dateparse
@@ -124,7 +126,7 @@ def fetch_helper(input_text, key_str='Total token usage', immediate=True, **kwar
     aggregate = False
     if 'return_keys' in kwargs and kwargs['return_keys']:
         for k in kwargs['return_keys']:
-            if response['data'] and k in response['data'][0]:
+            if 'data' in response and response['data'] and k in response['data'][0]:
                 aggregate = True
     else:
         aggregate = True
@@ -341,7 +343,7 @@ def tally_value(response, return_keys, start_date, end_date):
             value = response[k]
         else:
             value = 0.
-            for obj in response['data']:
+            for obj in response.get('data', []):
                 # if 'free' in obj['snapshot_id']:
                 #     print(obj['snapshot_id'])
                 #     print(obj['n_credits_total'])
@@ -376,7 +378,7 @@ if __name__ == '__main__':
     # print(tot)
 
     if DEV:
-        res = usage('', immediate=False)
+        res = usage('') # , immediate=False)
     else:
         res = usage('')
     post_response(res)
