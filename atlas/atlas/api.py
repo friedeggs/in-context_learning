@@ -17,19 +17,19 @@ def get_completion(response, completion_kwargs: Dict, index: int = 0, prompt: Op
 		text = text.rstrip()
 	return text
 
-def get_completions(response, completion_kwargs: Dict, prompt: Optional[str] = None) -> Optional[List[str]]:
+def get_completions(response, completion_kwargs: Dict, prompt: Optional[str] = None, strip_whitespace: list = ['left']) -> Optional[List[str]]:
 	if response is None:
 		return None
 	completions = [
-		get_completion(response, completion_kwargs, idx, prompt) 
+		get_completion(response, completion_kwargs, idx, prompt, strip_whitespace) 
 		for idx in range(len(response['choices']))
 	]
 	return completions
 
-def get_completion_s(response, completion_kwargs: Dict, prompt: Optional[str] = None) -> Optional[Union[str, List[str]]]:
+def get_completion_s(response, completion_kwargs: Dict, prompt: Optional[str] = None, strip_whitespace: list = ['left']) -> Optional[Union[str, List[str]]]:
 	if response is None:
 		return None
-	completions = get_completions(response, completion_kwargs, prompt)
+	completions = get_completions(response, completion_kwargs, prompt, strip_whitespace)
 	if len(completions) == 1:
 		completions = completions[0]
 	return completions
@@ -81,7 +81,7 @@ def get_top_logprobs(choice, completion_kwargs, prompt: Optional[str] = None, co
 				end_idx = min(end_idx, choice['logprobs']['tokens'][start_idx:].index(token))
 			except (IndexError, ValueError):
 				pass
-	lps = lps[:end_idx]
+	lps = lps[:end_idx+1]  # include stop token
 	if keys == True:
 		top_logprobs = [{list(lp.keys())[i]: list(lp.values())[i] for i in range(n)} for lp in lps]
 	elif keys is not None:
@@ -123,6 +123,8 @@ def get_top_tokens_s(response, completion_kwargs: Dict, prompt: Optional[str] = 
 	return tlps
 
 def get_completion_logprobs(choice, completion_kwargs: Dict, prompt: Optional[str] = None, strip_whitespace: list = ['left', 'right']) -> str:
+	"""Note: may differ from generation, e.g. if tokens overlap or for subsequent tokens after branching away 
+	"""
 	kvs = get_top_logprobs(choice, completion_kwargs, prompt, completion_only=prompt is not None, n=1, keys=True)
 	completion = ''.join([list(kv.keys())[0] for kv in kvs])
 	if 'left' in strip_whitespace:

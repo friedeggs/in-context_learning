@@ -103,9 +103,9 @@ class ProductDataset(Dataset):
 	def __len__(self):
 		return min(MAX_INT, np.prod(list(map(len, self.datasets))))
 
-class SumDataset(Dataset):
+class ConcatDataset(Dataset):
 	def __init__(self, datasets: List[Dataset], keys: Optional[List] = None, **kwargs):
-		super(SumDataset, self).__init__(**kwargs)
+		super(ConcatDataset, self).__init__(**kwargs)
 		self.datasets = datasets
 		self.keys = keys
 
@@ -220,6 +220,7 @@ class InputOutputDataset(Dataset):
 			x_y_separator: str = '\n',
 			prefix: Optional[str] = None,
 			transform: Callable = lambda x: x,
+			suffix: Optional[str] = None,
 			**kwargs):
 		super(InputOutputDataset, self).__init__(**kwargs)
 		self.dataset = dataset
@@ -230,6 +231,7 @@ class InputOutputDataset(Dataset):
 		self.intra_separator = intra_separator
 		self.x_y_separator = x_y_separator
 		self.prefix = prefix
+		self.suffix = suffix
 		self.transform = transform
 
 	@functools.lru_cache(maxsize=10240)
@@ -240,7 +242,7 @@ class InputOutputDataset(Dataset):
 			formatter=self.formatter, include_y=self.include_y, 
 			intra_separator=self.intra_separator, 
 			x_y_separator=self.x_y_separator, 
-			prefix=self.prefix, transform=self.transform)
+			prefix=self.prefix, suffix=self.suffix, transform=self.transform)
 
 	def __len__(self):
 		return len(self.dataset)

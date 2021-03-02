@@ -29,7 +29,7 @@ from .content_lib import (
 	random_word_length_5,
 )
 from .dataset import (
-	Dataset, FewShotDataset, FormattingDataset, FuncDataset, GPTDataset, IdentityDataset, IndexDataset, InputOutputDataset, IntDataset, ListDataset, NondeterministicDataset, ProductDataset, SumDataset
+	Dataset, FewShotDataset, FormattingDataset, FuncDataset, GPTDataset, IdentityDataset, IndexDataset, InputOutputDataset, IntDataset, ListDataset, NondeterministicDataset, ProductDataset, ConcatDataset
 )
 from .error_analysis import (
 	add_neighbors,

@@ -62,7 +62,9 @@ def get_value_dict(content, tgt_forms: List[Callable]):
 		**{f: getattr(content, f) for f in content._fields},
 		**{f'fp{i}': fp for i, fp in enumerate(form_primitives)},
 		**{'<2-digit>': r'\d\d',},
+		**{'<4-digit>': r'\d\d\d\d',},
 		**{'<5-digit>': r'\d\d\d\d\d',},
+		**{'<6-digit>': r'\d\d\d\d\d\d',},
 		**{'Input': 'Input'},  # TODO use io_format_args instead of hardcoding
 		**{'Output': 'Output'},
 	}
@@ -184,9 +186,9 @@ def getitem(lst, index, default_value=None):
 
 def print_templates(templates, gt_template=None, output_text=None, input_text=None):
 	if input_text is not None and output_text is not None:
-		print(f'{input_text} -> {output_text}')
+		log.info(f'{input_text} -> {output_text}')
 	elif output_text is not None:
-		print(output_text)
+		log.info(output_text)
 	for solution in templates:
 		for i in range(max(map(len, solution))):
 			line = ''
@@ -200,14 +202,14 @@ def print_templates(templates, gt_template=None, output_text=None, input_text=No
 				# val = '{0: <{width}}'.format(val, width=width)
 				# line += val + colored('|', 'magenta')
 				line += f' {val:{width}s}' + colored('|', 'magenta')
-			print(line)
+			log.info(line)
 		exemplar = list(map(lambda x: x[0][1], solution))
 		if output_text is not None:
 			assert ''.join(exemplar) == output_text
 		print('')
 	if gt_template is not None:
 		predicted_templates = list(map(lambda s: list(map(lambda x: x[0][0], s)), templates))
-		print(gt_template in predicted_templates)
+		log.info(gt_template in predicted_templates)
 	print('')
 
 def test_match_templates():

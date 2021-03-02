@@ -1,5 +1,6 @@
 import sys, os 
 import exrex
+import itertools
 # import matplotlib
 # matplotlib.use('tkAgg')
 # from matplotlib import pyplot as plt
@@ -285,6 +286,7 @@ def run_task_E(gpt3):
 		('onions', labels['plant/vegetable']),
 		('duck', labels['animal']),
 	]
+	_train_examples = train_examples
 	set_seed(0)
 	train_examples = list(np.random.permutation(train_examples))
 	print('\n'.join(list(map(lambda x: ': '.join(x), train_examples))))
@@ -310,6 +312,15 @@ def run_task_E(gpt3):
 	print('\n'.join(list(map(lambda x: ': '.join(x), test_examples))))
 	print(len(test_examples))
 	_run_task(gpt3, prefix, train_examples, test_examples)
+
+	for i in range(10):
+		set_seed(i)
+		train_examples = list(np.random.permutation(_train_examples))
+	# for perm in itertools.permutations(train_examples):
+	# 	perm = [tuple(p) for p in perm]
+		# print(perm)
+		_run_task(gpt3, prefix, train_examples, test_examples)
+		# break
 
 def main(argv):
 	GPT = GPT3 if 'submit' in argv else MockGPT3

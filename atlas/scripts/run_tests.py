@@ -62,12 +62,35 @@ if __name__ == '__main__':
 	# 	log.info(engine)
 	# 	dates(sys.argv, n_train=15, n_test=2000, engine=engine)
 	# dates(sys.argv, n_train=15, n_test=50, engine='davinci')
+	# dates(sys.argv, n_train=15, n_test=50, engine='ada')
+	# dates(sys.argv, n_train=15, n_test=2000, engine='davinci')
 	# # dates(sys.argv, n_train=15, n_test=2000)
 	# # dates(sys.argv, n_train=112, n_test=100)
 	# identity(sys.argv, n_train=5, n_test=1000, engine='ada')
 	# identity(sys.argv, n_train=5, n_test=1000)
 	# unnatural_addition_2_digit(sys.argv, n_train=340, n_test=100, sep1=' - ')
-	# unnatural_addition_2_digit(sys.argv, n_train=50, n_test=2000, sep1=' - ')
+
+	## Blog post 
+	# for engine in ['ada', 'babbage', 'curie', 'davinci']:
+	# 	log.info(engine)
+	# 	dates(sys.argv, n_train=15, n_test=2000, engine=engine)
+	# dates(sys.argv, n_train=15, n_test=2000, engine='ada')
+	# dates(sys.argv, n_train=15, n_test=10, engine='davinci')
+	# unnatural_addition_2_digit(sys.argv, n_train=50, n_test=2000, sep1=' - ', offset=4, max_n_train=24)
+	# unnatural_addition_2_digit(sys.argv, n_train=50, n_test=2000, sep1=' - ', offset=24)
+	# dates_unnatural_content(sys.argv, n_train=15, n_test=10) # 2000)
+
+	n_test = 2000
+	# n_test = 10
+	identity(sys.argv, n_train=5, n_test=1000, engine='ada')
+	# identity(sys.argv, n_train=5, n_test=1000, engine='davinci')
+	# for engine in ['ada', 'babbage', 'curie', 'davinci']:
+	# 	log.info(engine)
+	# 	dates(sys.argv, n_train=15, n_test=n_test, engine=engine)
+	# dates(sys.argv, n_train=15, n_test=n_test, engine='davinci')
+	# unnatural_addition_2_digit(sys.argv, n_train=50, n_test=n_test, sep1=' - ')
+	# dates_unnatural_content(sys.argv, n_train=15, n_test=n_test, n_skip=5)
+
 	# test_match_templates_addition()
 	# unnatural_addition_2_digit(sys.argv, n_train=50, n_test=2000, sep1=' - ', prefix='Instead of subtracting the two numbers given, add them.\n')
 	# unnatural_addition_2_digit_qa(sys.argv, n_train=5, n_test=100, sep1=' - ', prefix='Instead of subtracting the two numbers given, add them.\n\n')

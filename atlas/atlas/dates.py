@@ -3,7 +3,7 @@ from tqdm import tqdm
 from typing import Any, Callable, Dict, List, Tuple, Optional
 
 from .dataset import (
-	Dataset, FewShotDataset, FormattingDataset, FuncDataset, IndexDataset, IntDataset, SumDataset
+	Dataset, FewShotDataset, FormattingDataset, FuncDataset, IndexDataset, IntDataset, ConcatDataset
 )
 # from .gpt import GPT3, completion_kwargs  # TODO fake import
 
@@ -12,7 +12,7 @@ def create_date_dataset():
 	month = IntDataset(1, 12+1)
 	day = IntDataset(1, 28+1)
 
-	dataset = SumDataset([year, month, day])
+	dataset = ConcatDataset([year, month, day])
 	dataset = FormattingDataset(dataset, 
 		# lambda x: '/'.join(map(lambda n: f'{n:02d}', x)), 
 		lambda x: '-'.join(map(lambda n: f'{n:02d}', x)),
@@ -47,7 +47,7 @@ def create_date_dataset():
 def create_arithmetic_dataset():
 	a = IntDataset(10, 100)
 	b = IntDataset(10, 100)
-	dataset = SumDataset([a, b])
+	dataset = ConcatDataset([a, b])
 	dataset = FuncDataset(dataset, 
 		funcs=[
 			lambda x: x + [sum(x)],
