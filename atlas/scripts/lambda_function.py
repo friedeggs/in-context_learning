@@ -7,11 +7,13 @@ Tests:
     QueryUsage: base64encode('command=%2Flassie&text=usage from Dec 1 to Dec 16').replace(' ','%20')
         'command=%2Flassie&text=usage%20from%20Dec%201%20to%20Dec%2016'
 DEV run:
+    export API_KEY=`cat ../../api-key`
     python lambda_function.py $API_KEY dev
 """
 import sys, os
 from dateutil.parser import parse as dateparse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+import pytz
 import base64
 import functools
 import json
@@ -24,12 +26,15 @@ from threading import Thread
 import traceback
 from urllib import parse as urlparse
 API_KEY = os.environ.get('API_KEY', None)
+UTC = timezone.utc
+# PST = pytz.timezone('US/Pacific')
+# EST = pytz.timezone('US/Eastern')
 
 def get_default_kwargs():
     return {
         'API_KEY': API_KEY, 
-        'start_date': datetime.today().replace(day=1),
-        'end_date': datetime.today(),
+        'start_date': datetime.today().replace(day=1).astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0),
+        'end_date': datetime.today().astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0),
         'return_keys': ['n_credits_total'], # pass None to return the full response
         'verbose': False,
     }
@@ -44,10 +49,11 @@ def query_usage(**kwargs):
     else:
         params = [
             ('start_date', kwargs['start_date'].strftime('%Y-%m-%d')),
-            ('end_date', (kwargs['end_date'] + timedelta(days=1)).strftime('%Y-%m-%d')), # inclusive
+            ('end_date', kwargs['end_date'].strftime('%Y-%m-%d')), # inclusive
         ]
     if 'user_id' in kwargs:
         params.append(('user_id', kwargs['user_id']))
+    # print(params)
     response = requests.get('https://api.openai.com/v1/usage', params=params, auth=('', kwargs['API_KEY'])).json()
     return process_response(response, **kwargs)
 
@@ -84,11 +90,12 @@ def register_command(*names):
 def help(*args, **kwargs):
     help_text = """Commands I understand:
 • `total`: Return the total number of davinci-equivalent tokens used by our organization (effectively equivalent to fetching `credits_used`).
-• `usage` [from `start_date`] [to `end_date`]: Return the total number of davinci-equivalent tokens used by our organization during the specified period. By default, `start_date` is the first day of the month and `end_date` is today. *Ex:* `/lassie usage to Dec 10`
+• `usage` [from `start_date`] [to `end_date`]: Return the total number of davinci-equivalent tokens used by our organization during the specified period in [`start_date`, `end_date`). By default, `start_date` is the first day of the month and `end_date` is today. *Ex:* `/lassie usage to Dec 10`
 • `fetch key [args...]`: Returns the given key from the usage API response object. The time period is set by default as with `usage` and applies to keys nested under "data". *Ex:* `/lassie fetch current_usage_usd`, `/lassie fetch n_requests from Dec 2 to Dec 10`
 • `response [args...]`: Print the full response object. Takes arguments formatted as `--arg=`. Time period set by default unless incompatible with other passed-in arguments. *Ex:* `/lassie response --date=Dec 10`
 • `help`, `h`: Output this message.
 
+All times are at 00h:00m:00s, in UTC matching the API timezone.
 More information: <https://gist.github.com/schnerd/2a7f1fd085feb997e049f9e8bef301b0|[Unstable] OpenAI Usage API>
     """
     response = {
@@ -121,7 +128,9 @@ def fetch_helper(input_text, key_str='Total token usage', immediate=True, **kwar
         _, kwargs['start_date'] = input_text.split('from ')[:2]
     for k, v in kwargs.items():
         if 'date' in k and isinstance(v, str):
-            kwargs[k] = dateparse(v)
+            kwargs[k] = dateparse(v).astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    # if 'end_date' in kwargs:  # inclusive
+    #     kwargs['end_date'] += timedelta(days=1)
     response = query_usage(**{**kwargs, **{'return_keys': None}})
     aggregate = False
     if 'return_keys' in kwargs and kwargs['return_keys']:
@@ -131,7 +140,8 @@ def fetch_helper(input_text, key_str='Total token usage', immediate=True, **kwar
     else:
         aggregate = True
     # print(kwargs['return_keys'])
-    # print(response[])
+    # print(kwargs)
+    # print(response)
     # print(aggregate)
     if not immediate and aggregate and 'date' not in kwargs and 'start_date' in kwargs:
         date = kwargs['start_date']
@@ -348,8 +358,8 @@ def tally_value(response, return_keys, start_date, end_date):
                 #     print(obj['snapshot_id'])
                 #     print(obj['n_credits_total'])
                 #     continue
-                date = datetime.fromtimestamp(obj['aggregation_timestamp'])
-                if start_date < date < end_date:
+                date = datetime.fromtimestamp(obj['aggregation_timestamp'], tz=timezone.utc)
+                if start_date <= date < end_date:
                     value += obj[k]
         result[k] = value
     if len(return_keys) == 1:
