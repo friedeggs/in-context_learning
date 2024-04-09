@@ -34,8 +34,6 @@ There are four main engines, in order of smallest to largest: `ada`, `babbage`, 
 
 Please note that this repository is **unstable** (in developer terms)! Send questions and comments to @friedeggs (Frieda). 
 
-For official access to the OpenAI API, talk to Percy. 
-
 # Changelog
 
 [2021-01-11] Committed example code. 
